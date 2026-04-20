@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import time
 import os
+from contextlib import asynccontextmanager
 from typing import Optional, List
 from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,17 +11,22 @@ from jose import jwt, JWTError
 from fastapi.security import HTTPBearer
 
 from .database import engine, Base, get_db
-from .models import User, ReportKeyword, SecReport
+from .models import User, ReportKeyword, SecReport, ReportSentHistory
 from .schemas import TelegramUser, KeywordResponse, KeywordSyncRequest, KeywordCreate, SecReportResponse
 
-# 초기 설정
-Base.metadata.create_all(bind=engine)
+# 데이터베이스 테이블 초기화 (애플리케이션 시작 시점에만 실행)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 앱 시작 시 테이블 생성
+    Base.metadata.create_all(bind=engine)
+    yield
+    # 앱 종료 시 필요한 정리 작업이 있다면 여기서 수행
 
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip().strip('"').strip("'")
 ALGORITHM = "HS256"
 
-app = FastAPI(title="SSH Reports Hub API")
+app = FastAPI(title="SSH Reports Hub API", lifespan=lifespan)
 
 origins = ["https://ssh-oci.netlify.app", "http://localhost:5173", "http://localhost:3000", "http://localhost:8888"]
 app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"], expose_headers=["*"])
