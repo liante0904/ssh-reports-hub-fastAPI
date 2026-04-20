@@ -26,11 +26,14 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install uv
-        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          version: "latest"
 
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --frozen
 
       - name: Run Tests
         # 모킹된 테스트를 실행하여 CI 환경에서 로직 무결성을 검증합니다.
