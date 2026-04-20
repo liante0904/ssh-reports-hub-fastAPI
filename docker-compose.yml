@@ -14,6 +14,7 @@ services:
     environment:
       - APP_ENV=${APP_ENV:-prod}
       - DB_BACKEND=sqlite
+      - SQLITE_DB_PATH=/data/telegram.db
       - TZ=Asia/Seoul
     restart: always
 
