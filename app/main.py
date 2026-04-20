@@ -1,18 +1,29 @@
-import hashlib
-import hmac
 import time
-import os
 from contextlib import asynccontextmanager
-from typing import Optional, List
-from fastapi import FastAPI, HTTPException, Depends, status, Request
+from typing import Annotated, Optional
+
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordBearer
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
+from slowapi.extension import _rate_limit_exceeded_handler
 from sqlalchemy.orm import Session
-from jose import jwt, JWTError
-from fastapi.security import HTTPBearer
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from .database import engine, Base, get_db
 from .models import User, ReportKeyword, SecReport, ReportSentHistory
 from .schemas import TelegramUser, KeywordResponse, KeywordSyncRequest, KeywordCreate, SecReportResponse
+from .security import (
+    SecurityHeadersMiddleware,
+    configure_sensitive_log_filter,
+    create_access_token,
+    decode_access_token,
+    verify_telegram_data,
+)
+from .settings import get_settings
 
 # 데이터베이스 테이블 초기화 (애플리케이션 시작 시점에만 실행)
 @asynccontextmanager
@@ -22,40 +33,50 @@ async def lifespan(app: FastAPI):
     yield
     # 앱 종료 시 필요한 정리 작업이 있다면 여기서 수행
 
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "")
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip().strip('"').strip("'")
-ALGORITHM = "HS256"
+settings = get_settings()
+configure_sensitive_log_filter()
 
-app = FastAPI(title="SSH Reports Hub API", lifespan=lifespan)
+app = FastAPI(
+    title="SSH Reports Hub API",
+    description="Telegram 인증 기반 리서치 리포트 조회 및 키워드 알림 API",
+    version="0.1.0",
+    lifespan=lifespan,
+    redirect_slashes=False,
+)
 
-origins = ["https://ssh-oci.netlify.app", "http://localhost:5173", "http://localhost:3000", "http://localhost:8888"]
-app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"], expose_headers=["*"])
+limiter = Limiter(key_func=get_remote_address, default_limits=[settings.rate_limit_default])
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-auth_scheme = HTTPBearer()
+# Middleware order matters: CORS is registered last so it wraps redirect/error responses.
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(SlowAPIMiddleware)
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.allowed_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+    expose_headers=[],
+)
 
-async def get_user_from_token(token: str = Depends(auth_scheme), db: Session = Depends(get_db)):
-    try:
-        payload = jwt.decode(token.credentials, JWT_SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("sub")
-        if user_id is None: raise HTTPException(status_code=401, detail="Invalid Token")
-    except JWTError: raise HTTPException(status_code=401, detail="Token Expired")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/telegram")
+
+async def get_user_from_token(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    payload = decode_access_token(token, settings)
+    user_id = payload["sub"]
     user = db.query(User).filter(User.id == int(user_id)).first()
-    if user is None: raise HTTPException(status_code=401, detail="User Not Found")
+    if user is None:
+        raise HTTPException(status_code=401, detail="User Not Found")
     return user
 
 # --- 엔드포인트 ---
 
 @app.post("/auth/telegram")
-async def auth_telegram(user_data: TelegramUser, db: Session = Depends(get_db)):
-    def verify_telegram_data(data: dict) -> bool:
-        check_hash = data.get("hash")
-        data_list = [f"{k}={v}" for k, v in sorted(data.items()) if k != "hash" and v is not None]
-        data_check_string = "\n".join(data_list)
-        secret_key = hashlib.sha256(TELEGRAM_BOT_TOKEN.encode()).digest()
-        hmac_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
-        return (hmac_hash == check_hash) and (time.time() - data.get("auth_date", 0) < 86400)
-
-    if not verify_telegram_data(user_data.model_dump()):
+@limiter.limit(settings.rate_limit_auth)
+async def auth_telegram(request: Request, user_data: TelegramUser, db: Session = Depends(get_db)):
+    if not verify_telegram_data(user_data.model_dump(), settings):
         raise HTTPException(status_code=401, detail="Telegram Auth Failed")
     
     db_user = db.query(User).filter(User.id == user_data.id).first()
@@ -69,14 +90,14 @@ async def auth_telegram(user_data: TelegramUser, db: Session = Depends(get_db)):
     
     db.commit()
     db.refresh(db_user)
-    access_token = jwt.encode({"sub": str(db_user.id)}, JWT_SECRET_KEY, algorithm=ALGORITHM)
+    access_token = create_access_token(db_user.id, settings)
     return {"access_token": access_token, "token_type": "bearer", "user": {"id": db_user.id, "status": db_user.status}}
 
-@app.get("/keywords", response_model=List[KeywordResponse])
+@app.get("/keywords", response_model=list[KeywordResponse])
 async def get_my_keywords(current_user: User = Depends(get_user_from_token), db: Session = Depends(get_db)):
     return db.query(ReportKeyword).filter(ReportKeyword.user_id == current_user.id, ReportKeyword.is_active == True).all()
 
-@app.post("/keywords/sync", response_model=List[KeywordResponse])
+@app.post("/keywords/sync", response_model=list[KeywordResponse])
 async def sync_keywords(request: KeywordSyncRequest, current_user: User = Depends(get_user_from_token), db: Session = Depends(get_db)):
     db.query(ReportKeyword).filter(ReportKeyword.user_id == current_user.id).update({"is_active": False})
     for kw_text in request.keywords:
@@ -99,16 +120,20 @@ async def update_keyword(keyword_id: int, keyword_in: KeywordCreate, current_use
     db.refresh(db_keyword)
     return db_keyword
 
-@app.get("/reports", response_model=List[SecReportResponse])
+@app.get("/reports", response_model=list[SecReportResponse])
+@app.get("/reports/", response_model=list[SecReportResponse])
 async def get_reports(
-    q: Optional[str] = None, 
-    limit: int = 50, 
-    offset: int = 0, 
+    q: Annotated[Optional[str], Query(min_length=1, max_length=100)] = None,
+    writer: Annotated[Optional[str], Query(min_length=1, max_length=100)] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
     db: Session = Depends(get_db)
 ):
     query = db.query(SecReport)
     if q:
         query = query.filter(SecReport.ARTICLE_TITLE.ilike(f"%{q}%"))
+    if writer:
+        query = query.filter(SecReport.WRITER.ilike(f"%{writer}%"))
     return query.order_by(SecReport.REG_DT.desc(), SecReport.report_id.desc()).offset(offset).limit(limit).all()
 
 @app.get("/health")
