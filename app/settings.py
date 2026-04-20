@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     telegram_auth_max_age_seconds: int = Field(default=60 * 60 * 24, ge=60, le=60 * 60 * 24 * 7)
     cors_allow_origins: str = (
         "https://ssh-oci.netlify.app,"
+        "https://ssh-oci.duckdns.org,"
         "http://localhost:5173,"
         "http://localhost:3000,"
         "http://localhost:8888"
