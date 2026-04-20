@@ -1,0 +1,100 @@
+name: Build and Deploy FastAPI to GHCR
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/ssh-reports-hub-fastapi
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run Tests
+        # 모킹된 테스트를 실행하여 CI 환경에서 로직 무결성을 검증합니다.
+        run: uv run pytest tests/test_api_mocked.py
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=raw,value=prod
+            type=sha,format=short
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Server via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+          PROJECT_DIR: ${{ secrets.PROJECT_DIR_FASTAPI || '/home/ubuntu/prod/ssh-reports-hub-fastAPI' }}
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: EXPECTED_SHA,PROJECT_DIR
+          script: |
+            set -eu
+            cd "$PROJECT_DIR"
+
+            git fetch origin main
+            git reset --hard "$EXPECTED_SHA"
+
+            echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            # 도커 컴포즈 실행 (이미지 풀 및 재생성)
+            docker compose pull
+            docker compose up -d --no-build --force-recreate
+
+            # 배포된 이미지의 리비전 확인
+            RUNNING_SHA="$(docker inspect ssh-reports-hub-api-prod --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')"
+            echo "Successfully deployed revision: $RUNNING_SHA"
+
+            docker image prune -f

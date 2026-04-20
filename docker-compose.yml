@@ -1,0 +1,21 @@
+services:
+  fastapi:
+    build: .
+    container_name: ssh-reports-hub-api-${APP_ENV:-prod}
+    user: "1001:1001"
+    ports:
+      - "8001:8000"
+    volumes:
+      - .:/app
+      - /home/ubuntu/sqlite3:/data
+    env_file:
+      - .env
+    environment:
+      - APP_ENV=${APP_ENV:-prod}
+      - TZ=Asia/Seoul
+    restart: always
+
+networks:
+  default:
+    name: vscode-network
+    external: true
