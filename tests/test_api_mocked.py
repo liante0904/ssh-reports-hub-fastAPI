@@ -1,5 +1,5 @@
 import pytest
-from fastapi.testclient import TestClient
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.main import app
@@ -13,31 +13,41 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 # 테스트 전 테이블 생성
 Base.metadata.create_all(bind=engine)
 
-# DB 의존성 주입을 테스트용 DB로 교체
-def override_get_db():
+async def override_get_db():
     try:
         db = TestingSessionLocal()
         yield db
     finally:
         db.close()
 
-app.dependency_overrides[get_db] = override_get_db
 
-client = TestClient(app)
+@pytest.fixture
+async def client():
+    app.dependency_overrides[get_db] = override_get_db
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as test_client:
+        yield test_client
+    app.dependency_overrides.clear()
 
-def test_health_check_mocked():
+
+@pytest.mark.anyio
+async def test_health_check_mocked(client):
     """DB 없이도 동작하는 헬스 체크 테스트"""
-    response = client.get("/health")
+    response = await client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
 
-def test_get_reports_empty_db():
+
+@pytest.mark.anyio
+async def test_get_reports_empty_db(client):
     """빈 DB에서의 리포트 조회 테스트"""
-    response = client.get("/reports?limit=5")
+    response = await client.get("/reports?limit=5")
     assert response.status_code == 200
     assert response.json() == []
 
-def test_invalid_telegram_auth_logic():
+
+@pytest.mark.anyio
+async def test_invalid_telegram_auth_logic(client):
     """인증 로직 검증 (모킹된 환경)"""
     invalid_user = {
         "id": 9999,
@@ -45,6 +55,6 @@ def test_invalid_telegram_auth_logic():
         "auth_date": 12345678,
         "hash": "wrong_hash"
     }
-    response = client.post("/auth/telegram", json=invalid_user)
+    response = await client.post("/auth/telegram", json=invalid_user)
     assert response.status_code == 401
     assert "Telegram Auth Failed" in response.json()["detail"]

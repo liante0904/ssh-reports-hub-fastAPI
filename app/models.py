@@ -31,7 +31,7 @@ class ReportKeyword(Base):
 
 class SecReport(Base):
     __tablename__ = MAIN_TABLE_NAME
-    report_id = Column(Integer, primary_key=True, index=True)
+    report_id = Column(BigInteger, primary_key=True, index=True)
     SEC_FIRM_ORDER = Column(Integer)
     ARTICLE_BOARD_ORDER = Column(Integer)
     FIRM_NM = Column(String)
@@ -57,7 +57,7 @@ class SecReport(Base):
 class ReportSentHistory(Base):
     __tablename__ = "TB_REPORT_SEND_HISTORY"
     id = Column(Integer, primary_key=True, index=True)
-    report_id = Column(Integer, ForeignKey(f"{MAIN_TABLE_NAME}.report_id"))
+    report_id = Column(BigInteger, ForeignKey(f"{MAIN_TABLE_NAME}.report_id"))
     user_id = Column(BigInteger)
     keyword = Column(String, nullable=True)
     sent_at = Column(DateTime(timezone=True), server_default=func.now())
