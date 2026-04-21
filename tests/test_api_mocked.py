@@ -3,7 +3,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.main import app
-from app.database import get_db, Base
+from app.database import get_reports_db, Base
 
 # 테스트용 SQLite 메모리 DB 설정
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
@@ -23,7 +23,7 @@ async def override_get_db():
 
 @pytest.fixture
 async def client():
-    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_reports_db] = override_get_db
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as test_client:
         yield test_client
