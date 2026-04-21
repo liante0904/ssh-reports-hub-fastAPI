@@ -78,11 +78,35 @@ def _paginate_ords_query(query, limit: int, offset: int) -> tuple[list[SecReport
     return rows[:limit], len(rows) > limit
 
 
+def _apply_legacy_search_filters(
+    query,
+    writer: Optional[str],
+    title: Optional[str],
+    mkt_tp: Optional[str],
+    company: Optional[int],
+):
+    if writer:
+        query = query.filter(SecReport.WRITER.ilike(f"%{writer}%"))
+    if title:
+        query = query.filter(SecReport.ARTICLE_TITLE.ilike(f"%{title}%"))
+    if mkt_tp == "global":
+        query = query.filter(SecReport.MKT_TP != "KR")
+    elif mkt_tp == "domestic":
+        query = query.filter(SecReport.MKT_TP == "KR")
+    if company is not None:
+        query = query.filter(SecReport.SEC_FIRM_ORDER == company)
+    return query
+
+
 @router.get("/industry")
 @router.get("/industry/")
 async def get_ords_industry_reports(
     request: Request,
     last_report_id: Annotated[Optional[int], Query(ge=1)] = None,
+    writer: Annotated[Optional[str], Query(min_length=1, max_length=100)] = None,
+    title: Annotated[Optional[str], Query(min_length=1, max_length=100)] = None,
+    mkt_tp: Annotated[Optional[str], Query(pattern="^(global|domestic)$")] = None,
+    company: Annotated[Optional[int], Query(ge=0)] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
     db: Session = Depends(get_reports_db),
@@ -100,6 +124,7 @@ async def get_ords_industry_reports(
     )
     if last_report_id is not None:
         query = query.filter(SecReport.report_id < last_report_id)
+    query = _apply_legacy_search_filters(query, writer, title, mkt_tp, company)
 
     rows, has_more = _paginate_ords_query(
         query.order_by(SecReport.report_id.desc()),
@@ -125,16 +150,7 @@ async def search_ords_reports(
     query = db.query(SecReport)
     if report_id is not None:
         query = query.filter(SecReport.report_id == report_id)
-    if writer:
-        query = query.filter(SecReport.WRITER.ilike(f"%{writer}%"))
-    if title:
-        query = query.filter(SecReport.ARTICLE_TITLE.ilike(f"%{title}%"))
-    if mkt_tp == "global":
-        query = query.filter(SecReport.MKT_TP != "KR")
-    elif mkt_tp == "domestic":
-        query = query.filter(SecReport.MKT_TP == "KR")
-    if company is not None:
-        query = query.filter(SecReport.SEC_FIRM_ORDER == company)
+    query = _apply_legacy_search_filters(query, writer, title, mkt_tp, company)
 
     if report_id is not None:
         query = query.order_by(SecReport.report_id.desc())

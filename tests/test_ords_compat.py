@@ -92,6 +92,30 @@ async def test_ords_industry_uses_existing_filter_and_response_shape(client):
 
 
 @pytest.mark.anyio
+async def test_ords_industry_accepts_legacy_search_filters(client):
+    response = await client.get(
+        "/ords/admin/data_main_daily_send/industry",
+        params={"writer": "김선우", "title": "디스플레이", "mkt_tp": "domestic", "company": 20},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["count"] == 1
+    assert data["items"][0]["report_id"] == 300
+
+
+@pytest.mark.anyio
+async def test_ords_industry_filters_out_non_matching_writer(client):
+    response = await client.get(
+        "/ords/admin/data_main_daily_send/industry",
+        params={"writer": "없는작성자"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["items"] == []
+
+
+@pytest.mark.anyio
 async def test_ords_search_filters_like_legacy_endpoint(client):
     response = await client.get(
         "/ords/admin/data_main_daily_send/search/",
