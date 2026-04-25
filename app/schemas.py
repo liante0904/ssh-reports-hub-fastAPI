@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel, ConfigDict
 
@@ -35,8 +36,8 @@ class KeywordResponse(KeywordBase):
 
     id: int
     user_id: int
-    created_at: int
-    updated_at: int
+    created_at: datetime
+    updated_at: datetime
 
 class KeywordSyncRequest(BaseModel):
     keywords: List[str]

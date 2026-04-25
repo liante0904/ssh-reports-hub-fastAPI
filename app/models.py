@@ -25,8 +25,8 @@ class ReportKeyword(Base):
     user_id = Column(BigInteger, ForeignKey("TELEGRAM_USERS.id"))
     keyword = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
-    created_at = Column(BigInteger, default=lambda: int(time.time()))
-    updated_at = Column(BigInteger, default=lambda: int(time.time()), onupdate=lambda: int(time.time()))
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     owner = relationship("User", back_populates="keywords")
 
 class SecReport(Base):
