@@ -9,7 +9,7 @@ DB_BACKEND = os.getenv("DB_BACKEND", "sqlite").lower()
 MAIN_TABLE_NAME = "TB_SEC_REPORTS" if DB_BACKEND == "postgres" else "data_main_daily_send"
 
 class User(Base):
-    __tablename__ = "TELEGRAM_USERS"
+    __tablename__ = "tbm_sec_reports_telegram_users"
     id = Column(BigInteger, primary_key=True, index=True)
     first_name = Column(String)
     last_name = Column(String, nullable=True)
@@ -22,7 +22,7 @@ class User(Base):
 class ReportKeyword(Base):
     __tablename__ = "tbm_sec_reports_alert_keywords"
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(BigInteger, ForeignKey("TELEGRAM_USERS.id"))
+    user_id = Column(BigInteger, ForeignKey("tbm_sec_reports_telegram_users.id"))
     keyword = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=func.now())
