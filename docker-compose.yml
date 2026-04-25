@@ -17,8 +17,9 @@ services:
       - SQLITE_DB_PATH=/data/telegram.db
       - TZ=Asia/Seoul
     restart: always
+    networks:
+      - public-net
 
 networks:
-  default:
-    name: vscode-network
+  public-net:
     external: true

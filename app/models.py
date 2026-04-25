@@ -20,7 +20,7 @@ class User(Base):
     keywords = relationship("ReportKeyword", back_populates="owner")
 
 class ReportKeyword(Base):
-    __tablename__ = "REPORT_ALERT_KEYWORDS"
+    __tablename__ = "tbm_sec_reports_alert_keywords"
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(BigInteger, ForeignKey("TELEGRAM_USERS.id"))
     keyword = Column(String, nullable=False)
