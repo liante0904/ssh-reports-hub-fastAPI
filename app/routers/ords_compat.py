@@ -41,7 +41,6 @@ def _report_to_ords_item(report: SecReport) -> dict:
         "writer": report.WRITER,
         "key": report.KEY,
         "mkt_tp": report.MKT_TP,
-        "attach_url": report.ATTACH_URL,
         "article_title": report.ARTICLE_TITLE,
         "telegram_url": report.TELEGRAM_URL,
         "article_url": report.ARTICLE_URL,

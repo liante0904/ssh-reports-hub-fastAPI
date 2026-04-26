@@ -36,7 +36,6 @@ class SecReport(Base):
     ARTICLE_BOARD_ORDER = Column(Integer)
     FIRM_NM = Column(String)
     REG_DT = Column(String)
-    ATTACH_URL = Column(String)
     ARTICLE_TITLE = Column(String)
     ARTICLE_URL = Column(String)
     MAIN_CH_SEND_YN = Column(String)

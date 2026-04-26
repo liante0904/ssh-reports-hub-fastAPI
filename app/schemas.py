@@ -9,7 +9,6 @@ class SecReportResponse(BaseModel):
     FIRM_NM: Optional[str] = None
     REG_DT: Optional[str] = None
     ARTICLE_TITLE: Optional[str] = None
-    ATTACH_URL: Optional[str] = None
     TELEGRAM_URL: Optional[str] = None
     PDF_URL: Optional[str] = None
     WRITER: Optional[str] = None
