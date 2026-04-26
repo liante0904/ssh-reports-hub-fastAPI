@@ -28,6 +28,6 @@ push:
 	git push origin main
 
 monitor:
-	gh run watch
+	gh run watch $$(gh run list --limit 1 --json databaseId --jq '.[0].databaseId')
 
 deploy: push monitor
