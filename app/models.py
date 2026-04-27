@@ -54,7 +54,7 @@ class SecReport(Base):
     sent_histories = relationship("ReportSentHistory", back_populates="report")
 
 class ReportSentHistory(Base):
-    __tablename__ = "TB_REPORT_SEND_HISTORY"
+    __tablename__ = "tbl_report_send_history"
     id = Column(Integer, primary_key=True, index=True)
     report_id = Column(BigInteger, ForeignKey(f"{MAIN_TABLE_NAME}.report_id"))
     user_id = Column(BigInteger)
