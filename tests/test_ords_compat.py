@@ -24,8 +24,8 @@ async def client():
         [
             SecReport(
                 report_id=300,
-                SEC_FIRM_ORDER=20,
-                ARTICLE_BOARD_ORDER=1,
+                sec_firm_order=20,
+                article_board_order=1,
                 FIRM_NM="메리츠증권",
                 REG_DT="20260421",
                 ARTICLE_TITLE="디스플레이 패널가",
@@ -36,8 +36,8 @@ async def client():
             ),
             SecReport(
                 report_id=200,
-                SEC_FIRM_ORDER=4,
-                ARTICLE_BOARD_ORDER=0,
+                sec_firm_order=4,
+                article_board_order=0,
                 FIRM_NM="KB증권",
                 REG_DT="20260420",
                 ARTICLE_TITLE="Global Insights",
@@ -48,8 +48,8 @@ async def client():
             ),
             SecReport(
                 report_id=100,
-                SEC_FIRM_ORDER=20,
-                ARTICLE_BOARD_ORDER=1,
+                sec_firm_order=20,
+                article_board_order=1,
                 FIRM_NM="메리츠증권",
                 REG_DT="20260419",
                 ARTICLE_TITLE="미발송 산업",

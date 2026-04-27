@@ -30,8 +30,8 @@ INDUSTRY_REPORT_BOARD_FILTERS = (
 def _report_to_ords_item(report: SecReport) -> dict:
     return {
         "report_id": report.report_id,
-        "sec_firm_order": report.SEC_FIRM_ORDER,
-        "article_board_order": report.ARTICLE_BOARD_ORDER,
+        "sec_firm_order": report.sec_firm_order,
+        "article_board_order": report.article_board_order,
         "firm_nm": report.FIRM_NM,
         "send_user": None,
         "main_ch_send_yn": report.MAIN_CH_SEND_YN,
@@ -93,7 +93,7 @@ def _apply_legacy_search_filters(
     elif mkt_tp == "domestic":
         query = query.filter(SecReport.MKT_TP == "KR")
     if company is not None:
-        query = query.filter(SecReport.SEC_FIRM_ORDER == company)
+        query = query.filter(SecReport.sec_firm_order == company)
     return query
 
 
@@ -112,8 +112,8 @@ async def get_ords_industry_reports(
 ):
     board_filters = [
         and_(
-            SecReport.SEC_FIRM_ORDER == firm_order,
-            SecReport.ARTICLE_BOARD_ORDER.in_(board_orders),
+            SecReport.sec_firm_order == firm_order,
+            SecReport.article_board_order.in_(board_orders),
         )
         for firm_order, board_orders in INDUSTRY_REPORT_BOARD_FILTERS
     ]
@@ -158,8 +158,8 @@ async def search_ords_reports(
             SecReport.REG_DT.desc(),
             SecReport.SAVE_TIME.desc(),
             SecReport.report_id.desc(),
-            SecReport.SEC_FIRM_ORDER,
-            SecReport.ARTICLE_BOARD_ORDER,
+            SecReport.sec_firm_order,
+            SecReport.article_board_order,
         )
 
     rows, has_more = _paginate_ords_query(query, limit, offset)

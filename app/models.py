@@ -32,8 +32,8 @@ class ReportKeyword(Base):
 class SecReport(Base):
     __tablename__ = MAIN_TABLE_NAME
     report_id = Column(BigInteger, primary_key=True, index=True)
-    SEC_FIRM_ORDER = Column(Integer)
-    ARTICLE_BOARD_ORDER = Column(Integer)
+    sec_firm_order = Column(Integer)
+    article_board_order = Column(Integer)
     FIRM_NM = Column(String)
     REG_DT = Column(String)
     ARTICLE_TITLE = Column(String)
