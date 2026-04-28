@@ -61,9 +61,9 @@ class SecReport(Base):
 class SecFirmInfo(Base):
     __tablename__ = "tbm_sec_firm_info"
     sec_firm_order = Column(Integer, primary_key=True)
-    sec_firm_name = Column(String, nullable=False)
-    is_direct_link = Column(String, default="N")
-    description = Column(String, nullable=True)
+    sec_firm_name = Column("firm_nm", String, nullable=False)
+    is_direct_link = Column("telegram_update_yn", String, default="N")
+    description = Column("COMMENT_PDF_URL", String, nullable=True)
 
 class ReportSentHistory(Base):
     __tablename__ = "tbl_report_send_history"
