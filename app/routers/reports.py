@@ -21,7 +21,7 @@ async def get_reports(
 ):
     query = db.query(SecReport)
     if q:
-        query = query.filter(SecReport.ARTICLE_TITLE.ilike(f"%{q}%"))
+        query = query.filter(SecReport.article_title.ilike(f"%{q}%"))
     if writer:
-        query = query.filter(SecReport.WRITER.ilike(f"%{writer}%"))
-    return query.order_by(SecReport.REG_DT.desc(), SecReport.report_id.desc()).offset(offset).limit(limit).all()
+        query = query.filter(SecReport.writer.ilike(f"%{writer}%"))
+    return query.order_by(SecReport.reg_dt.desc(), SecReport.report_id.desc()).offset(offset).limit(limit).all()

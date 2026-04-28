@@ -6,7 +6,7 @@ from .database import Base
 
 # DB 설정에 따라 테이블 이름 결정
 DB_BACKEND = os.getenv("DB_BACKEND", "sqlite").lower()
-MAIN_TABLE_NAME = "TB_SEC_REPORTS" if DB_BACKEND == "postgres" else "data_main_daily_send"
+MAIN_TABLE_NAME = "tbl_sec_reports" if DB_BACKEND == "postgres" else "data_main_daily_send"
 
 class User(Base):
     __tablename__ = "tbm_sec_reports_telegram_users"
@@ -34,21 +34,26 @@ class SecReport(Base):
     report_id = Column(BigInteger, primary_key=True, index=True)
     sec_firm_order = Column(Integer)
     article_board_order = Column(Integer)
-    FIRM_NM = Column(String)
-    REG_DT = Column(String)
-    ARTICLE_TITLE = Column(String)
-    ARTICLE_URL = Column(String)
-    MAIN_CH_SEND_YN = Column(String)
-    DOWNLOAD_URL = Column(String)
-    TELEGRAM_URL = Column(String)
-    PDF_URL = Column(String)
-    WRITER = Column(String)
-    MKT_TP = Column(String)
-    KEY = Column(String, unique=True)
-    SAVE_TIME = Column(String)
-    GEMINI_SUMMARY = Column(String, nullable=True)
-    SUMMARY_TIME = Column(String, nullable=True)
-    SUMMARY_MODEL = Column(String, nullable=True)
+    firm_nm = Column(String)
+    article_title = Column(String)
+    article_url = Column(String)
+    main_ch_send_yn = Column(String)
+    download_status_yn = Column(String, default="")
+    download_url = Column(String)
+    save_time = Column(String)
+    reg_dt = Column(String, default="")
+    writer = Column(String, default="")
+    key = Column(String, unique=True)
+    telegram_url = Column(String, default="")
+    mkt_tp = Column(String, default="KR")
+    gemini_summary = Column(String, nullable=True)
+    summary_time = Column(String, nullable=True)
+    summary_model = Column(String, nullable=True)
+    archive_path = Column(String, nullable=True)
+    retry_count = Column(Integer, default=0)
+    sync_status = Column(Integer, default=0)
+    pdf_url = Column(String, default="")
+    pdf_sync_status = Column(Integer, default=0)
     
     # 발송 이력과의 관계
     sent_histories = relationship("ReportSentHistory", back_populates="report")

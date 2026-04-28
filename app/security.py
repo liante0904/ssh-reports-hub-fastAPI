@@ -3,7 +3,7 @@ import hmac
 import logging
 import re
 import time
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, Request, status
 from jose import JWTError, jwt
@@ -60,7 +60,7 @@ def require_jwt_secret(settings: Settings) -> None:
 
 def create_access_token(subject: int, settings: Settings) -> str:
     require_jwt_secret(settings)
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     expires_at = now + timedelta(minutes=settings.access_token_expire_minutes)
     payload = {
         "sub": str(subject),

@@ -1,15 +1,52 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 from app.main import app
+from app.database import get_reports_db, Base
+from app.models import SecReport
 
+# 테스트용 SQLite 메모리 DB 설정
+engine = create_engine(
+    "sqlite://",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 @pytest.fixture
 async def client():
-    app.dependency_overrides.clear()
+    # 테이블 생성
+    Base.metadata.create_all(bind=engine)
+    
+    # 샘플 데이터 추가
+    db = TestingSessionLocal()
+    db.add(SecReport(
+        report_id=1,
+        firm_nm="테스트증권",
+        article_title="반도체 산업 전망",
+        reg_dt="20260428",
+        main_ch_send_yn="Y",
+        key="test-key-1"
+    ))
+    db.commit()
+    db.close()
+
+    async def override_get_reports_db():
+        test_db = TestingSessionLocal()
+        try:
+            yield test_db
+        finally:
+            test_db.close()
+
+    app.dependency_overrides[get_reports_db] = override_get_reports_db
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as test_client:
         yield test_client
+    
     app.dependency_overrides.clear()
+    Base.metadata.drop_all(bind=engine)
 
 
 @pytest.mark.anyio
@@ -34,8 +71,8 @@ async def test_get_reports_pagination(client):
     if len(data) > 0:
         report = data[0]
         assert "report_id" in report
-        assert "FIRM_NM" in report
-        assert "ARTICLE_TITLE" in report
+        assert "firm_nm" in report
+        assert "article_title" in report
 
 
 @pytest.mark.anyio
@@ -49,7 +86,7 @@ async def test_search_reports(client):
     
     # 만약 결과가 있다면 제목에 '반도체'가 포함되어야 함 (대소문자 무시 검색 확인)
     if len(data) > 0:
-        assert "반도체" in data[0]["ARTICLE_TITLE"]
+        assert "반도체" in data[0]["article_title"]
 
 
 @pytest.mark.anyio

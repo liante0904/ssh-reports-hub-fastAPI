@@ -32,23 +32,23 @@ def _report_to_ords_item(report: SecReport) -> dict:
         "report_id": report.report_id,
         "sec_firm_order": report.sec_firm_order,
         "article_board_order": report.article_board_order,
-        "firm_nm": report.FIRM_NM,
+        "firm_nm": report.firm_nm,
         "send_user": None,
-        "main_ch_send_yn": report.MAIN_CH_SEND_YN,
+        "main_ch_send_yn": report.main_ch_send_yn,
         "download_status_yn": None,
-        "save_time": report.SAVE_TIME,
-        "reg_dt": report.REG_DT,
-        "writer": report.WRITER,
-        "key": report.KEY,
-        "mkt_tp": report.MKT_TP,
-        "article_title": report.ARTICLE_TITLE,
-        "telegram_url": report.TELEGRAM_URL,
-        "article_url": report.ARTICLE_URL,
-        "download_url": report.DOWNLOAD_URL,
-        "pdf_url": report.PDF_URL,
-        "gemini_summary": report.GEMINI_SUMMARY,
-        "summary_time": report.SUMMARY_TIME,
-        "summary_model": report.SUMMARY_MODEL,
+        "save_time": report.save_time,
+        "reg_dt": report.reg_dt,
+        "writer": report.writer,
+        "key": report.key,
+        "mkt_tp": report.mkt_tp,
+        "article_title": report.article_title,
+        "telegram_url": report.telegram_url,
+        "article_url": report.article_url,
+        "download_url": report.download_url,
+        "pdf_url": report.pdf_url,
+        "gemini_summary": report.gemini_summary,
+        "summary_time": report.summary_time,
+        "summary_model": report.summary_model,
     }
 
 
@@ -85,13 +85,13 @@ def _apply_legacy_search_filters(
     company: Optional[int],
 ):
     if writer:
-        query = query.filter(SecReport.WRITER.ilike(f"%{writer}%"))
+        query = query.filter(SecReport.writer.ilike(f"%{writer}%"))
     if title:
-        query = query.filter(SecReport.ARTICLE_TITLE.ilike(f"%{title}%"))
+        query = query.filter(SecReport.article_title.ilike(f"%{title}%"))
     if mkt_tp == "global":
-        query = query.filter(SecReport.MKT_TP != "KR")
+        query = query.filter(SecReport.mkt_tp != "KR")
     elif mkt_tp == "domestic":
-        query = query.filter(SecReport.MKT_TP == "KR")
+        query = query.filter(SecReport.mkt_tp == "KR")
     if company is not None:
         query = query.filter(SecReport.sec_firm_order == company)
     return query
@@ -119,7 +119,7 @@ async def get_ords_industry_reports(
     ]
     query = db.query(SecReport).filter(
         or_(*board_filters),
-        SecReport.MAIN_CH_SEND_YN == "Y",
+        SecReport.main_ch_send_yn == "Y",
     )
     if last_report_id is not None:
         query = query.filter(SecReport.report_id < last_report_id)
@@ -155,8 +155,8 @@ async def search_ords_reports(
         query = query.order_by(SecReport.report_id.desc())
     else:
         query = query.order_by(
-            SecReport.REG_DT.desc(),
-            SecReport.SAVE_TIME.desc(),
+            SecReport.reg_dt.desc(),
+            SecReport.save_time.desc(),
             SecReport.report_id.desc(),
             SecReport.sec_firm_order,
             SecReport.article_board_order,

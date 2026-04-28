@@ -6,13 +6,13 @@ class SecReportResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     report_id: int
-    FIRM_NM: Optional[str] = None
-    REG_DT: Optional[str] = None
-    ARTICLE_TITLE: Optional[str] = None
-    TELEGRAM_URL: Optional[str] = None
-    PDF_URL: Optional[str] = None
-    WRITER: Optional[str] = None
-    GEMINI_SUMMARY: Optional[str] = None
+    firm_nm: Optional[str] = None
+    reg_dt: Optional[str] = None
+    article_title: Optional[str] = None
+    telegram_url: Optional[str] = None
+    pdf_url: Optional[str] = None
+    writer: Optional[str] = None
+    gemini_summary: Optional[str] = None
 
 class TelegramUser(BaseModel):
     id: int
