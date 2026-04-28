@@ -58,6 +58,13 @@ class SecReport(Base):
     # 발송 이력과의 관계
     sent_histories = relationship("ReportSentHistory", back_populates="report")
 
+class SecFirmInfo(Base):
+    __tablename__ = "tbm_sec_firm_info"
+    sec_firm_order = Column(Integer, primary_key=True)
+    sec_firm_name = Column(String, nullable=False)
+    is_direct_link = Column(String, default="N")
+    description = Column(String, nullable=True)
+
 class ReportSentHistory(Base):
     __tablename__ = "tbl_report_send_history"
     id = Column(Integer, primary_key=True, index=True)

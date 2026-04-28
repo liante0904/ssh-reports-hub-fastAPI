@@ -7,12 +7,19 @@ class SecReportResponse(BaseModel):
 
     report_id: int
     firm_nm: Optional[str] = None
+    is_direct: Optional[bool] = None
     reg_dt: Optional[str] = None
     article_title: Optional[str] = None
     telegram_url: Optional[str] = None
     pdf_url: Optional[str] = None
     writer: Optional[str] = None
     gemini_summary: Optional[str] = None
+
+class CompanyResponse(BaseModel):
+    name: str
+    is_direct: bool
+    note: Optional[str] = None
+    report_count: int
 
 class TelegramUser(BaseModel):
     id: int
