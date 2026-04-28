@@ -14,7 +14,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from .database import Base, get_keywords_db, keywords_engine, reports_engine
 from .models import ReportKeyword, User
-from .routers import ords_compat, reports
+from .routers import ords_compat, pub_api, reports
 from .schemas import KeywordCreate, KeywordResponse, KeywordSyncRequest, TelegramUser
 from .security import (
     SecurityHeadersMiddleware,
@@ -150,6 +150,7 @@ async def update_keyword(
 
 
 app.include_router(reports.router)
+app.include_router(pub_api.router)
 app.include_router(ords_compat.router)
 
 
