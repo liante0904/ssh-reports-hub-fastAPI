@@ -5,6 +5,8 @@ import re
 import time
 from datetime import datetime, timedelta, timezone
 
+UTC = timezone.utc
+
 from fastapi import HTTPException, Request, status
 from jose import JWTError, jwt
 from starlette.middleware.base import BaseHTTPMiddleware

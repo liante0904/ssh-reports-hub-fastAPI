@@ -14,7 +14,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from .database import Base, get_keywords_db, keywords_engine, reports_engine
 from .models import ReportKeyword, User
-from .routers import ords_compat, pub, pub_api, reports
+from .routers import ords_compat, pub, pub_api, reports, consensus, notes
 from .schemas import KeywordCreate, KeywordResponse, KeywordSyncRequest, TelegramUser
 from .security import (
     SecurityHeadersMiddleware,
@@ -23,7 +23,8 @@ from .security import (
     decode_access_token,
     verify_telegram_data,
 )
-from .settings import get_settings
+from .settings import get_settings, Settings
+from .dependencies import get_user_from_token, oauth2_scheme, get_settings_dep
 
 
 @asynccontextmanager
@@ -33,18 +34,17 @@ async def lifespan(app: FastAPI):
     yield
 
 
-settings = get_settings()
 configure_sensitive_log_filter()
 
 app = FastAPI(
-    title="SSH Reports Hub API",
-    description="Telegram 인증 기반 리서치 리포트 조회 및 키워드 알림 API",
+    title="SSH Private Hub API",
+    description="Private Telegram 인증 기반 주식 리서치 및 미니 블룸버그 API",
     version="0.1.0",
     lifespan=lifespan,
     redirect_slashes=False,
 )
 
-limiter = Limiter(key_func=get_remote_address, default_limits=[settings.rate_limit_default])
+limiter = Limiter(key_func=get_remote_address, default_limits=[get_settings().rate_limit_default])
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -53,27 +53,21 @@ app.add_middleware(SlowAPIMiddleware)
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.allowed_origins,
+    allow_origins=get_settings().allowed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/telegram")
-
-
-async def get_user_from_token(token: str = Depends(oauth2_scheme), db: Session = Depends(get_keywords_db)):
-    payload = decode_access_token(token, settings)
-    user_id = payload["sub"]
-    user = db.query(User).filter(User.id == int(user_id)).first()
-    if user is None:
-        raise HTTPException(status_code=401, detail="User Not Found")
-    return user
-
 
 @app.post("/auth/telegram")
-@limiter.limit(settings.rate_limit_auth)
-async def auth_telegram(request: Request, user_data: TelegramUser, db: Session = Depends(get_keywords_db)):
+@limiter.limit(get_settings().rate_limit_auth)
+async def auth_telegram(
+    request: Request, 
+    user_data: TelegramUser, 
+    db: Session = Depends(get_keywords_db),
+    settings: Settings = Depends(get_settings_dep)
+):
     if not verify_telegram_data(user_data.model_dump(), settings):
         raise HTTPException(status_code=401, detail="Telegram Auth Failed")
 
@@ -153,6 +147,8 @@ app.include_router(reports.router)
 app.include_router(pub.router)
 app.include_router(pub_api.router)
 app.include_router(ords_compat.router)
+app.include_router(consensus.router)
+app.include_router(notes.router)
 
 
 @app.get("/health")

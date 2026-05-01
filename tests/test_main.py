@@ -3,8 +3,9 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+from app.database import Base, get_reports_db
 from app.main import app
-from app.database import get_reports_db, Base
+
 from app.models import SecReport
 
 # 테스트용 SQLite 메모리 DB 설정
@@ -22,14 +23,42 @@ async def client():
     
     # 샘플 데이터 추가
     db = TestingSessionLocal()
-    db.add(SecReport(
-        report_id=1,
-        firm_nm="테스트증권",
-        article_title="반도체 산업 전망",
-        reg_dt="20260428",
-        main_ch_send_yn="Y",
-        key="test-key-1"
-    ))
+    db.add_all(
+        [
+            SecReport(
+                report_id=1,
+                firm_nm="테스트증권",
+                article_title="반도체 산업 전망",
+                reg_dt="20260428",
+                main_ch_send_yn="Y",
+                key="test-key-1"
+            ),
+            SecReport(
+                report_id=3,
+                sec_firm_order=20,
+                article_board_order=1,
+                firm_nm="메리츠증권",
+                reg_dt="20260421",
+                article_title="반도체 업황 점검",
+                main_ch_send_yn="Y",
+                writer="김선우",
+                mkt_tp="KR",
+                save_time="21-APR-26",
+            ),
+            SecReport(
+                report_id=2,
+                sec_firm_order=4,
+                article_board_order=0,
+                firm_nm="KB증권",
+                reg_dt="20260420",
+                article_title="Global Insights",
+                main_ch_send_yn="Y",
+                writer="김일혁",
+                mkt_tp="US",
+                save_time="20-APR-26",
+            ),
+        ]
+    )
     db.commit()
     db.close()
 

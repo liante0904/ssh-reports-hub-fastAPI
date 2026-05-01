@@ -1,4 +1,4 @@
-SECRETS := python3 $(HOME)/secrets/generate_env.py hub
+SECRETS := python3 $(HOME)/secrets/generate_env.py private-hub
 COMPOSE  := docker compose
 
 .PHONY: up down restart logs ps env

@@ -1,6 +1,7 @@
 from datetime import datetime
+import re
 from typing import Optional, List
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 class SecReportResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -47,3 +48,100 @@ class KeywordResponse(KeywordBase):
 
 class KeywordSyncRequest(BaseModel):
     keywords: List[str]
+
+class ConsensusResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    code: str
+    name: str
+    date: datetime
+    target_period: str
+    sector: Optional[str] = None
+    current_price: Optional[float] = None
+    market_cap: Optional[float] = None
+    per: Optional[float] = None
+    pbr: Optional[float] = None
+    roe: Optional[float] = None
+    dividend_yield: Optional[float] = None
+    operating_profit: Optional[float] = None
+    operating_profit_prev: Optional[float] = None
+    operating_profit_revision: Optional[float] = None
+    net_income: Optional[float] = None
+    net_income_prev: Optional[float] = None
+    net_income_revision: Optional[float] = None
+    sales: Optional[float] = None
+    sales_prev: Optional[float] = None
+    sales_revision: Optional[float] = None
+    eps: Optional[float] = None
+    eps_prev: Optional[float] = None
+    eps_revision: Optional[float] = None
+    rev_1m: Optional[float] = None
+    rev_3m: Optional[float] = None
+    updated_at: datetime
+
+class ConsensusHistoryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    date: datetime
+    rev_1m: Optional[float] = None
+    rev_3m: Optional[float] = None
+    current_price: Optional[float] = None
+    operating_profit: Optional[float] = None
+    net_income: Optional[float] = None
+    sales: Optional[float] = None
+    eps: Optional[float] = None
+
+class ConsensusSectorResponse(BaseModel):
+    sector: str
+    stock_count: int
+    avg_rev_1m: float
+    avg_rev_3m: float
+
+class ConsensusSummaryResponse(BaseModel):
+    total: int
+    up_count: int
+    down_count: int
+    latest_date: datetime
+
+class InvestmentNoteBase(BaseModel):
+    content: Optional[str] = ""
+    color_bg: Optional[str] = None
+    color_border: Optional[str] = None
+    x_pos: int = 100
+    y_pos: int = 100
+    z_index: int = 10
+
+    @field_validator("x_pos", "y_pos")
+    @classmethod
+    def check_coordinates(cls, v: int) -> int:
+        if not (0 <= v <= 5000):
+            raise ValueError("Coordinates must be between 0 and 5000")
+        return v
+
+    @field_validator("color_bg", "color_border")
+    @classmethod
+    def check_color_hex(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        if not re.match(r"^#(?:[0-9a-fA-F]{3}){1,2}$", v):
+            raise ValueError("Color must be a valid HEX code (e.g., #FFFFFF or #FFF)")
+        return v
+
+class InvestmentNoteCreate(InvestmentNoteBase):
+    pass
+
+class InvestmentNoteUpdate(BaseModel):
+    content: Optional[str] = None
+    color_bg: Optional[str] = None
+    color_border: Optional[str] = None
+    x_pos: Optional[int] = None
+    y_pos: Optional[int] = None
+    z_index: Optional[int] = None
+
+class InvestmentNoteResponse(InvestmentNoteBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: int
+    created_at: datetime
+    updated_at: datetime

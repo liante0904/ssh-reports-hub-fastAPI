@@ -1,8 +1,12 @@
 import os
 import time
-from sqlalchemy import Column, Integer, String, Boolean, BigInteger, ForeignKey, DateTime, func
+from sqlalchemy import Column, Integer, String, Boolean, BigInteger, ForeignKey, DateTime, Float, func, Text
 from sqlalchemy.orm import relationship
 from .database import Base
+
+class TimestampMixin:
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 # DB 설정에 따라 테이블 이름 결정
 DB_BACKEND = os.getenv("DB_BACKEND", "sqlite").lower()
@@ -18,15 +22,14 @@ class User(Base):
     status = Column(String, default="active")
     created_at = Column(BigInteger, default=lambda: int(time.time()))
     keywords = relationship("ReportKeyword", back_populates="owner")
+    notes = relationship("InvestmentNote", back_populates="owner", cascade="all, delete-orphan")
 
-class ReportKeyword(Base):
+class ReportKeyword(Base, TimestampMixin):
     __tablename__ = "tbm_sec_reports_alert_keywords"
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(BigInteger, ForeignKey("tbm_sec_reports_telegram_users.id"))
     keyword = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     owner = relationship("User", back_populates="keywords")
 
 class SecReport(Base):
@@ -65,6 +68,20 @@ class SecFirmInfo(Base):
     is_direct_link = Column("telegram_update_yn", String, default="N")
     description = Column("COMMENT_PDF_URL", String, nullable=True)
 
+class InvestmentNote(Base, TimestampMixin):
+    __tablename__ = "investment_notes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(BigInteger, ForeignKey("tbm_sec_reports_telegram_users.id"), nullable=False)
+    content = Column(Text, default="")
+    color_bg = Column(String(20))
+    color_border = Column(String(20))
+    x_pos = Column(Integer, default=100)
+    y_pos = Column(Integer, default=100)
+    z_index = Column(Integer, default=10)
+
+    owner = relationship("User", back_populates="notes")
+
 class ReportSentHistory(Base):
     __tablename__ = "tbl_report_send_history"
     id = Column(Integer, primary_key=True, index=True)
@@ -74,3 +91,27 @@ class ReportSentHistory(Base):
     sent_at = Column(DateTime(timezone=True), server_default=func.now())
     
     report = relationship("SecReport", back_populates="sent_histories")
+
+
+class ConsensusHistory(Base):
+    __tablename__ = "tbm_consensus_history"
+
+    code = Column(String, primary_key=True)
+    date = Column(DateTime, primary_key=True)
+    target_period = Column(String, primary_key=True)
+
+    name = Column(String, nullable=False)
+    sector = Column(String, nullable=True)
+    current_price = Column(Float, nullable=True)
+    market_cap = Column(Float, nullable=True)
+    per = Column(Float, nullable=True)
+    pbr = Column(Float, nullable=True)
+    roe = Column(Float, nullable=True)
+    dividend_yield = Column(Float, nullable=True)
+    operating_profit = Column(Float, nullable=True)
+    net_income = Column(Float, nullable=True)
+    sales = Column(Float, nullable=True)
+    eps = Column(Float, nullable=True)
+    rev_1m = Column(Float, nullable=True)
+    rev_3m = Column(Float, nullable=True)
+    updated_at = Column(DateTime, nullable=False, server_default=func.now())

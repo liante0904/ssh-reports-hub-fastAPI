@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-04-30
+
+### Added
+
+- 투자 메모(`investment_notes`) CRUD API 기능을 추가했습니다.
+- `ssh-library` 공통 라이브러리에 `InvestmentNoteManager`를 추가하여 외부 연동을 지원합니다.
+- 순환 참조 해결을 위해 `app/dependencies.py`를 신설하고 인증 로직을 분리했습니다.
+- 향후 코드 품질 개선을 위한 `docs/refactoring.md` 계획서를 작성했습니다.
+
+### Changed
+
+- `app/models.py`와 `app/schemas.py`에 투자 메모 관련 모델 및 스키마를 추가했습니다.
+- `app/main.py`에 `InvestmentNote` 라우터를 등록했습니다.
+
+### Verification
+
+- `PYTHONPATH=. pytest` (7 passed)
+- `ssh-library` 기존 테스트 통과 확인 (3 passed)
+- 수동 컴파일 확인 (`python3 -m py_compile`)
+
 ## 2026-04-21
 
 ### Added
