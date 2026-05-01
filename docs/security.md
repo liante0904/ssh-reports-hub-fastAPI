@@ -10,6 +10,7 @@
 - `/auth/telegram` 성공 시 발급되는 JWT에 `sub`, `type`, `iat`, `exp` 클레임을 포함합니다.
 - 보호 API는 `OAuth2PasswordBearer`로 Bearer 토큰을 추출하고, 만료되었거나 형식이 잘못된 토큰을 `401`로 거부합니다.
 - `JWT_SECRET_KEY`는 최소 32자 이상으로 설정되어야 토큰 발급/검증이 동작합니다. 미설정 또는 약한 값이면 `503`으로 실패합니다.
+- `ALLOWED_TELEGRAM_USER_IDS`가 비어 있으면 모든 유효한 Telegram 사용자가 로그인할 수 있습니다. private 서비스로 쓰려면 쉼표로 구분된 사용자 ID 목록을 넣어야 합니다.
 
 ### Telegram 인증 검증
 
@@ -21,6 +22,7 @@
 
 - 허용 Origin은 `CORS_ALLOW_ORIGINS` 환경 변수로 관리합니다.
 - 기본 허용값은 Netlify 운영 도메인과 로컬 개발 포트입니다.
+- 현재 기본 허용값에는 `https://ssh-private-hub.netlify.app`와 `http://localhost:5174`가 포함됩니다.
 - 허용 메서드는 `GET`, `POST`, `PUT`, `OPTIONS`로 제한했습니다.
 - 허용 헤더는 `Authorization`, `Content-Type`으로 제한했습니다.
 
@@ -60,7 +62,8 @@ JWT_SECRET_KEY=change-this-to-a-random-32-plus-character-secret
 ACCESS_TOKEN_EXPIRE_MINUTES=1440
 TELEGRAM_BOT_TOKEN=123456:telegram-bot-token
 TELEGRAM_AUTH_MAX_AGE_SECONDS=86400
-CORS_ALLOW_ORIGINS=https://ssh-oci.netlify.app,http://localhost:5173,http://localhost:3000,http://localhost:8888
+ALLOWED_TELEGRAM_USER_IDS=123456789
+CORS_ALLOW_ORIGINS=https://ssh-private-hub.netlify.app,https://ssh-oci.netlify.app,https://ssh-oci.duckdns.org,http://localhost:5174,http://localhost:5173,http://localhost:3000,http://localhost:8888
 RATE_LIMIT_DEFAULT=120/minute
 RATE_LIMIT_AUTH=10/minute
 ```

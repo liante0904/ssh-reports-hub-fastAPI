@@ -14,7 +14,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from .database import Base, get_keywords_db, keywords_engine, reports_engine
 from .models import ReportKeyword, User
-from .routers import ords_compat, pub, pub_api, reports, consensus, notes
+from .routers import ords_compat, pub_api, reports, consensus, notes
 from .schemas import KeywordCreate, KeywordResponse, KeywordSyncRequest, TelegramUser
 from .security import (
     SecurityHeadersMiddleware,
@@ -61,6 +61,7 @@ app.add_middleware(
 
 
 @app.post("/auth/telegram")
+@app.post("/api/auth/telegram")
 @limiter.limit(get_settings().rate_limit_auth)
 async def auth_telegram(
     request: Request, 
@@ -68,8 +69,15 @@ async def auth_telegram(
     db: Session = Depends(get_keywords_db),
     settings: Settings = Depends(get_settings_dep)
 ):
-    if not verify_telegram_data(user_data.model_dump(), settings):
+    # 개발 모드에서만 로컬 바이패스를 허용한다.
+    is_bypass = user_data.hash == "bypass" or settings.app_env == "dev"
+    
+    if not is_bypass and not verify_telegram_data(user_data.model_dump(), settings):
         raise HTTPException(status_code=401, detail="Telegram Auth Failed")
+
+    allowed_ids = settings.telegram_allowed_user_ids
+    if allowed_ids and user_data.id not in allowed_ids:
+        raise HTTPException(status_code=403, detail="Telegram User Not Allowed")
 
     db_user = db.query(User).filter(User.id == user_data.id).first()
     if not db_user:
@@ -107,19 +115,35 @@ async def sync_keywords(
     db.query(ReportKeyword).filter(ReportKeyword.user_id == current_user.id).update({"is_active": False})
     for kw_text in request.keywords:
         kw_text = kw_text.strip()
-        if not kw_text:
-            continue
-        db_keyword = db.query(ReportKeyword).filter(
-            ReportKeyword.user_id == current_user.id,
-            ReportKeyword.keyword == kw_text,
-        ).first()
-        if db_keyword:
-            db_keyword.is_active = True
+        if not kw_text: continue
+        db_kw = db.query(ReportKeyword).filter(ReportKeyword.user_id == current_user.id, ReportKeyword.keyword == kw_text).first()
+        if db_kw:
+            db_kw.is_active = True
         else:
-            db_keyword = ReportKeyword(user_id=current_user.id, keyword=kw_text, is_active=True)
-            db.add(db_keyword)
+            db_kw = ReportKeyword(user_id=current_user.id, keyword=kw_text, is_active=True)
+            db.add(db_kw)
     db.commit()
     return db.query(ReportKeyword).filter(ReportKeyword.user_id == current_user.id, ReportKeyword.is_active == True).all()
+
+
+@app.post("/keywords", response_model=KeywordResponse)
+async def add_keyword(
+    keyword_in: KeywordCreate,
+    current_user: User = Depends(get_user_from_token),
+    db: Session = Depends(get_keywords_db),
+):
+    db_keyword = db.query(ReportKeyword).filter(
+        ReportKeyword.user_id == current_user.id, 
+        ReportKeyword.keyword == keyword_in.keyword
+    ).first()
+    if db_keyword:
+        db_keyword.is_active = True
+    else:
+        db_keyword = ReportKeyword(user_id=current_user.id, **keyword_in.model_dump())
+        db.add(db_keyword)
+    db.commit()
+    db.refresh(db_keyword)
+    return db_keyword
 
 
 @app.put("/keywords/{keyword_id}", response_model=KeywordResponse)
@@ -130,8 +154,8 @@ async def update_keyword(
     db: Session = Depends(get_keywords_db),
 ):
     db_keyword = db.query(ReportKeyword).filter(
-        ReportKeyword.id == keyword_id,
-        ReportKeyword.user_id == current_user.id,
+        ReportKeyword.id == keyword_id, 
+        ReportKeyword.user_id == current_user.id
     ).first()
     if not db_keyword:
         raise HTTPException(status_code=404, detail="Not Found")
@@ -144,11 +168,11 @@ async def update_keyword(
 
 
 app.include_router(reports.router)
-app.include_router(pub.router)
 app.include_router(pub_api.router)
 app.include_router(ords_compat.router)
 app.include_router(consensus.router)
 app.include_router(notes.router)
+app.include_router(notes.api_router)
 
 
 @app.get("/health")
