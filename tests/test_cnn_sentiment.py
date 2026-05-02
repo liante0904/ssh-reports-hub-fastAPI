@@ -6,7 +6,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.database import Base, get_reports_db, get_keywords_db
 from app.main import app
-from app.models import MarketSentimentSnapshot
+from app.models import MarketSentimentDailySnapshot, MarketSentimentSnapshot
 from app.routers import cnn_sentiment
 
 
@@ -90,9 +90,18 @@ async def test_cnn_sync_and_history(client):
     assert len(history_data) == 1
     assert history_data[0]["score"] == 64.2
 
+    daily_response = await client.get("/sentiment/cnn/daily?limit=5")
+    assert daily_response.status_code == 200
+    daily_data = daily_response.json()
+    assert len(daily_data) == 1
+    assert daily_data[0]["score"] == 64.2
+    assert daily_data[0]["snapshot_date"] == "2026-05-01"
+
     db = TestingSessionLocal()
     try:
         snapshots = db.query(MarketSentimentSnapshot).all()
         assert len(snapshots) == 1
+        daily_snapshots = db.query(MarketSentimentDailySnapshot).all()
+        assert len(daily_snapshots) == 1
     finally:
         db.close()

@@ -239,3 +239,15 @@ class CNNFearGreedSnapshotResponse(BaseModel):
     history: dict
     indicators: dict[str, CNNFearGreedIndicatorResponse]
     fetched_at: datetime
+
+
+class CNNFearGreedDailySnapshotResponse(BaseModel):
+    id: int
+    source: str
+    snapshot_date: str
+    snapshot_ts: datetime
+    score: float
+    rating: str
+    history: dict
+    indicators: dict[str, CNNFearGreedIndicatorResponse]
+    fetched_at: datetime

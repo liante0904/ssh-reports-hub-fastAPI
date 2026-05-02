@@ -1,6 +1,6 @@
 import os
 import time
-from sqlalchemy import Column, Integer, String, Boolean, BigInteger, ForeignKey, DateTime, Float, func, Text, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Boolean, BigInteger, ForeignKey, Date, DateTime, Float, func, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -169,6 +169,24 @@ class MarketSentimentSnapshot(Base):
     id = Column(Integer, primary_key=True, index=True)
     source = Column(String, nullable=False, default="cnn", index=True)
     snapshot_ts = Column(DateTime(timezone=True), nullable=False, index=True)
+    score = Column(Float, nullable=False, default=0.0)
+    rating = Column(String, nullable=False, default="neutral")
+    history_json = Column(Text, nullable=False, default="{}")
+    indicators_json = Column(Text, nullable=False, default="{}")
+    raw_json = Column(Text, nullable=False, default="{}")
+    fetched_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class MarketSentimentDailySnapshot(Base):
+    __tablename__ = "tbm_market_sentiment_daily_snapshots"
+    __table_args__ = (
+        UniqueConstraint("source", "snapshot_date", name="uq_market_sentiment_daily_snapshot_source_date"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    source = Column(String, nullable=False, default="cnn", index=True)
+    snapshot_date = Column(Date, nullable=False, index=True)
+    snapshot_ts = Column(DateTime(timezone=True), nullable=False)
     score = Column(Float, nullable=False, default=0.0)
     rating = Column(String, nullable=False, default="neutral")
     history_json = Column(Text, nullable=False, default="{}")

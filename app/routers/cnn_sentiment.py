@@ -8,9 +8,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from ..database import get_reports_db
-from ..models import MarketSentimentIndicator, MarketSentimentSnapshot
+from ..models import MarketSentimentDailySnapshot, MarketSentimentIndicator, MarketSentimentSnapshot
 from ..schemas import (
     CNNFearGreedIndicatorResponse,
+    CNNFearGreedDailySnapshotResponse,
     CNNFearGreedLatestResponse,
     CNNFearGreedSnapshotResponse,
 )
@@ -20,6 +21,16 @@ KST = timezone(timedelta(hours=9))
 
 router = APIRouter(prefix="/sentiment/cnn", tags=["cnn-sentiment"])
 api_router = APIRouter(prefix="/api/sentiment/cnn", tags=["cnn-sentiment"], include_in_schema=False)
+
+
+def _to_kst(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=KST)
+    return value.astimezone(KST)
+
+
+def _to_snapshot_date(value: datetime):
+    return _to_kst(value).date()
 
 
 def _upsert_live_indicator_rows(db: Session, snapshot: dict) -> None:
@@ -86,22 +97,71 @@ def _store_snapshot(db: Session, snapshot: dict) -> MarketSentimentSnapshot:
     return record
 
 
-def _snapshot_to_response(row: MarketSentimentSnapshot) -> CNNFearGreedSnapshotResponse:
-    snapshot_ts = row.snapshot_ts
-    if snapshot_ts.tzinfo is None:
-        snapshot_ts = snapshot_ts.replace(tzinfo=KST)
-    else:
-        snapshot_ts = snapshot_ts.astimezone(KST)
+def _store_daily_snapshot(db: Session, snapshot: dict) -> MarketSentimentDailySnapshot:
+    snapshot_date = _to_snapshot_date(snapshot["timestamp"])
+    existing = db.query(MarketSentimentDailySnapshot).filter(
+        MarketSentimentDailySnapshot.source == "cnn",
+        MarketSentimentDailySnapshot.snapshot_date == snapshot_date,
+    ).first()
 
-    fetched_at = row.fetched_at
-    if fetched_at.tzinfo is None:
-        fetched_at = fetched_at.replace(tzinfo=KST)
-    else:
-        fetched_at = fetched_at.astimezone(KST)
+    history_json = to_json(snapshot["history"])
+    indicators_json = to_json(snapshot["indicators"])
+    raw_json = to_json(snapshot["raw"])
+
+    if existing:
+        existing.snapshot_ts = snapshot["timestamp"]
+        existing.score = snapshot["score"]
+        existing.rating = snapshot["rating"]
+        existing.history_json = history_json
+        existing.indicators_json = indicators_json
+        existing.raw_json = raw_json
+        db.commit()
+        db.refresh(existing)
+        return existing
+
+    record = MarketSentimentDailySnapshot(
+        source="cnn",
+        snapshot_date=snapshot_date,
+        snapshot_ts=snapshot["timestamp"],
+        score=snapshot["score"],
+        rating=snapshot["rating"],
+        history_json=history_json,
+        indicators_json=indicators_json,
+        raw_json=raw_json,
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return record
+
+
+def _snapshot_to_response(row: MarketSentimentSnapshot) -> CNNFearGreedSnapshotResponse:
+    snapshot_ts = _to_kst(row.snapshot_ts)
+    fetched_at = _to_kst(row.fetched_at)
 
     return CNNFearGreedSnapshotResponse(
         id=row.id,
         source=row.source,
+        snapshot_ts=snapshot_ts,
+        score=row.score,
+        rating=row.rating,
+        history=json.loads(row.history_json or "{}"),
+        indicators={
+            key: CNNFearGreedIndicatorResponse(**value)
+            for key, value in json.loads(row.indicators_json or "{}").items()
+        },
+        fetched_at=fetched_at,
+    )
+
+
+def _daily_snapshot_to_response(row: MarketSentimentDailySnapshot) -> CNNFearGreedDailySnapshotResponse:
+    snapshot_ts = _to_kst(row.snapshot_ts)
+    fetched_at = _to_kst(row.fetched_at)
+
+    return CNNFearGreedDailySnapshotResponse(
+        id=row.id,
+        source=row.source,
+        snapshot_date=row.snapshot_date.isoformat(),
         snapshot_ts=snapshot_ts,
         score=row.score,
         rating=row.rating,
@@ -144,6 +204,7 @@ async def sync_cnn_fear_greed(db: Session = Depends(get_reports_db)):
 
     _upsert_live_indicator_rows(db, snapshot)
     row = _store_snapshot(db, snapshot)
+    _store_daily_snapshot(db, snapshot)
     return _snapshot_to_response(row)
 
 
@@ -159,6 +220,46 @@ async def get_cnn_fear_greed_history(
         query = query.filter(MarketSentimentSnapshot.source == source)
     rows = query.limit(limit).all()
     return [_snapshot_to_response(row) for row in rows]
+
+
+@router.get("/daily", response_model=list[CNNFearGreedDailySnapshotResponse])
+@router.get("/daily/", response_model=list[CNNFearGreedDailySnapshotResponse])
+async def get_cnn_fear_greed_daily_history(
+    limit: int = Query(default=30, ge=1, le=365),
+    source: Optional[str] = Query(default="cnn"),
+    db: Session = Depends(get_reports_db),
+):
+    query = db.query(MarketSentimentDailySnapshot).order_by(MarketSentimentDailySnapshot.snapshot_date.desc())
+    if source:
+        query = query.filter(MarketSentimentDailySnapshot.source == source)
+    rows = query.limit(limit).all()
+
+    if not rows and source:
+        snapshot_rows = (
+            db.query(MarketSentimentSnapshot)
+            .filter(MarketSentimentSnapshot.source == source)
+            .order_by(MarketSentimentSnapshot.snapshot_ts.asc())
+            .all()
+        )
+        if snapshot_rows:
+            deduped: dict[str, MarketSentimentSnapshot] = {}
+            for row in snapshot_rows:
+                deduped[_to_snapshot_date(row.snapshot_ts).isoformat()] = row
+            for row in deduped.values():
+                _store_daily_snapshot(
+                    db,
+                    {
+                        "timestamp": _to_kst(row.snapshot_ts),
+                        "score": row.score,
+                        "rating": row.rating,
+                        "history": json.loads(row.history_json or "{}"),
+                        "indicators": json.loads(row.indicators_json or "{}"),
+                        "raw": json.loads(row.raw_json or "{}"),
+                    },
+                )
+            rows = query.limit(limit).all()
+
+    return [_daily_snapshot_to_response(row) for row in rows]
 
 
 @api_router.get("/latest", response_model=CNNFearGreedLatestResponse)
@@ -181,3 +282,13 @@ async def get_cnn_fear_greed_history_api(
     db: Session = Depends(get_reports_db),
 ):
     return await get_cnn_fear_greed_history(limit=limit, source=source, db=db)
+
+
+@api_router.get("/daily", response_model=list[CNNFearGreedDailySnapshotResponse])
+@api_router.get("/daily/", response_model=list[CNNFearGreedDailySnapshotResponse])
+async def get_cnn_fear_greed_daily_history_api(
+    limit: int = Query(default=30, ge=1, le=365),
+    source: Optional[str] = Query(default="cnn"),
+    db: Session = Depends(get_reports_db),
+):
+    return await get_cnn_fear_greed_daily_history(limit=limit, source=source, db=db)
