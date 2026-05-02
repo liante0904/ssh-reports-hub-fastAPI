@@ -38,7 +38,7 @@ async def get_report_summaries(
         query = query.filter(FnGuideReportSummary.author.ilike(f"%{author}%"))
 
     return (
-        query.order_by(FnGuideReportSummary.summary_id.desc(), FnGuideReportSummary.report_date.desc())
+        query.order_by(FnGuideReportSummary.summary_id.asc(), FnGuideReportSummary.report_date.desc())
         .offset(offset)
         .limit(limit)
         .all()
