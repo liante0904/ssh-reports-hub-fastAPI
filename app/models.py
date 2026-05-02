@@ -141,3 +141,20 @@ class ConsensusHistory(Base):
     rev_1m = Column(Float, nullable=True)
     rev_3m = Column(Float, nullable=True)
     updated_at = Column(DateTime, nullable=False, server_default=func.now())
+
+
+class MarketSentimentIndicator(Base):
+    __tablename__ = "tbm_market_sentiment_indicators"
+
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String, nullable=False, unique=True, index=True)
+    title = Column(String, nullable=False)
+    category = Column(String, nullable=False, default="general")
+    description = Column(Text, nullable=True)
+    value = Column(Float, nullable=False, default=0.0)
+    unit = Column(String, nullable=False, default="pt")
+    score = Column(Float, nullable=False, default=0.0)
+    status = Column(String, nullable=False, default="neutral")
+    source = Column(String, nullable=True)
+    sort_order = Column(Integer, nullable=False, default=0)
+    updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())

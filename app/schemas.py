@@ -187,3 +187,29 @@ class InvestmentNoteResponse(InvestmentNoteBase):
     user_id: int
     created_at: datetime
     updated_at: datetime
+
+
+class MarketSentimentIndicatorResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    key: str
+    title: str
+    category: str
+    description: Optional[str] = None
+    value: float
+    unit: str
+    score: float
+    status: str
+    source: Optional[str] = None
+    sort_order: int
+    updated_at: datetime
+
+
+class MarketSentimentSummaryResponse(BaseModel):
+    composite_score: float
+    status_label: str
+    overheat_count: int
+    neutral_count: int
+    fear_count: int
+    latest_update: datetime
