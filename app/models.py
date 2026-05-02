@@ -1,6 +1,6 @@
 import os
 import time
-from sqlalchemy import Column, Integer, String, Boolean, BigInteger, ForeignKey, DateTime, Float, func, Text
+from sqlalchemy import Column, Integer, String, Boolean, BigInteger, ForeignKey, DateTime, Float, func, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -158,3 +158,20 @@ class MarketSentimentIndicator(Base):
     source = Column(String, nullable=True)
     sort_order = Column(Integer, nullable=False, default=0)
     updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
+
+
+class MarketSentimentSnapshot(Base):
+    __tablename__ = "tbm_market_sentiment_snapshots"
+    __table_args__ = (
+        UniqueConstraint("source", "snapshot_ts", name="uq_market_sentiment_snapshot_source_ts"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    source = Column(String, nullable=False, default="cnn", index=True)
+    snapshot_ts = Column(DateTime(timezone=True), nullable=False, index=True)
+    score = Column(Float, nullable=False, default=0.0)
+    rating = Column(String, nullable=False, default="neutral")
+    history_json = Column(Text, nullable=False, default="{}")
+    indicators_json = Column(Text, nullable=False, default="{}")
+    raw_json = Column(Text, nullable=False, default="{}")
+    fetched_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())

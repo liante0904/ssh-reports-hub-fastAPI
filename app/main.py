@@ -15,7 +15,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from .database import Base, get_keywords_db, keywords_engine, reports_engine
 from .models import ReportKeyword, User
-from .routers import ords_compat, pub_api, reports, consensus, notes, fnguide_reports, sentiment
+from .routers import ords_compat, pub_api, reports, consensus, notes, fnguide_reports, sentiment, cnn_sentiment
 from .schemas import KeywordCreate, KeywordResponse, KeywordSyncRequest, TelegramUser
 from .security import (
     SecurityHeadersMiddleware,
@@ -200,6 +200,8 @@ app.include_router(notes.router)
 app.include_router(notes.api_router)
 app.include_router(sentiment.router)
 app.include_router(sentiment.api_router)
+app.include_router(cnn_sentiment.router)
+app.include_router(cnn_sentiment.api_router)
 
 
 @app.get("/health")

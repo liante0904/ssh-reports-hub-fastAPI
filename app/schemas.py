@@ -213,3 +213,29 @@ class MarketSentimentSummaryResponse(BaseModel):
     neutral_count: int
     fear_count: int
     latest_update: datetime
+
+
+class CNNFearGreedIndicatorResponse(BaseModel):
+    key: str
+    score: float
+    rating: str
+    title: Optional[str] = None
+
+
+class CNNFearGreedLatestResponse(BaseModel):
+    score: float
+    rating: str
+    timestamp: datetime
+    history: dict
+    indicators: dict[str, CNNFearGreedIndicatorResponse]
+
+
+class CNNFearGreedSnapshotResponse(BaseModel):
+    id: int
+    source: str
+    snapshot_ts: datetime
+    score: float
+    rating: str
+    history: dict
+    indicators: dict[str, CNNFearGreedIndicatorResponse]
+    fetched_at: datetime

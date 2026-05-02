@@ -88,12 +88,16 @@ def seed_mock_sentiment_indicators(engine) -> None:
         db.commit()
 
 
-def _fetch_indicators(db: Session):
-    return (
-        db.query(MarketSentimentIndicator)
-        .order_by(MarketSentimentIndicator.sort_order.asc(), MarketSentimentIndicator.id.asc())
-        .all()
-    )
+def _fetch_indicators(db: Session, source: Optional[str] = None):
+    query = db.query(MarketSentimentIndicator)
+    if source:
+        query = query.filter(MarketSentimentIndicator.source == source)
+    else:
+        has_cnn_rows = db.query(MarketSentimentIndicator.id).filter(MarketSentimentIndicator.source == "cnn").first()
+        if has_cnn_rows:
+            query = query.filter(MarketSentimentIndicator.source == "cnn")
+
+    return query.order_by(MarketSentimentIndicator.sort_order.asc(), MarketSentimentIndicator.id.asc()).all()
 
 
 def _summary_payload(rows):
