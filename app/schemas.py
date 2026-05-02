@@ -112,6 +112,7 @@ class InvestmentNoteBase(BaseModel):
     width: int = 250
     height: int = 220
     z_index: int = 10
+    parent_id: Optional[int] = None
 
     @field_validator("x_pos", "y_pos")
     @classmethod
@@ -148,6 +149,7 @@ class InvestmentNoteUpdate(BaseModel):
     width: Optional[int] = None
     height: Optional[int] = None
     z_index: Optional[int] = None
+    parent_id: Optional[int] = None
 
 class InvestmentNoteResponse(InvestmentNoteBase):
     model_config = ConfigDict(from_attributes=True)

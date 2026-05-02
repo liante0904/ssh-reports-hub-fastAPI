@@ -45,6 +45,7 @@ def _ensure_investment_note_layout_columns(engine) -> None:
     migrations = {
         "width": "width INTEGER DEFAULT 250",
         "height": "height INTEGER DEFAULT 220",
+        "parent_id": "parent_id INTEGER",
     }
 
     for column_name, column_sql in migrations.items():

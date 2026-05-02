@@ -81,6 +81,7 @@ class InvestmentNote(Base, TimestampMixin):
     width = Column(Integer, default=250)
     height = Column(Integer, default=220)
     z_index = Column(Integer, default=10)
+    parent_id = Column(Integer, nullable=True, index=True)
 
     owner = relationship("User", back_populates="notes")
 
