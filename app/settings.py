@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = Field(default=60 * 24, ge=5, le=60 * 24 * 30)
     telegram_bot_token: str = ""
     telegram_auth_max_age_seconds: int = Field(default=60 * 60 * 24, ge=60, le=60 * 60 * 24 * 7)
+    allow_auth_bypass: bool = False
     cors_allow_origins: str = (
         "https://ssh-private-hub.netlify.app,"
         "https://ssh-oci.netlify.app,"

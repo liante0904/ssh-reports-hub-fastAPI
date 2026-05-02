@@ -93,21 +93,23 @@ def decode_access_token(token: str, settings: Settings) -> dict:
     return payload
 
 
-def verify_telegram_data(data: dict, settings: Settings) -> bool:
+def verify_telegram_data(data: dict, settings: Settings) -> tuple[bool, str]:
     bot_token = settings.clean_telegram_bot_token
     if not bot_token:
-        return False
+        return False, "TELEGRAM_BOT_TOKEN is not configured"
 
     check_hash = data.get("hash")
     if not check_hash:
-        return False
+        return False, "Missing Telegram hash"
 
     auth_date = data.get("auth_date", 0)
     if time.time() - auth_date > settings.telegram_auth_max_age_seconds:
-        return False
+        return False, "Telegram auth data is expired"
 
     data_list = [f"{key}={value}" for key, value in sorted(data.items()) if key != "hash" and value is not None]
     data_check_string = "\n".join(data_list)
     secret_key = hashlib.sha256(bot_token.encode()).digest()
     expected_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
-    return hmac.compare_digest(expected_hash, check_hash)
+    if not hmac.compare_digest(expected_hash, check_hash):
+        return False, "Telegram signature mismatch"
+    return True, ""

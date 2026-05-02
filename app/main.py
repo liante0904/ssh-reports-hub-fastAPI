@@ -70,10 +70,12 @@ async def auth_telegram(
     settings: Settings = Depends(get_settings_dep)
 ):
     # 개발 모드에서만 로컬 바이패스를 허용한다.
-    is_bypass = user_data.hash == "bypass" or settings.app_env == "dev"
+    is_bypass = user_data.hash == "bypass" or settings.app_env == "dev" or settings.allow_auth_bypass
     
-    if not is_bypass and not verify_telegram_data(user_data.model_dump(), settings):
-        raise HTTPException(status_code=401, detail="Telegram Auth Failed")
+    if not is_bypass:
+        is_valid, reason = verify_telegram_data(user_data.model_dump(), settings)
+        if not is_valid:
+            raise HTTPException(status_code=401, detail=f"Telegram Auth Failed: {reason}")
 
     allowed_ids = settings.telegram_allowed_user_ids
     if allowed_ids and user_data.id not in allowed_ids:
