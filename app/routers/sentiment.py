@@ -120,9 +120,10 @@ def _summary_payload(rows):
     fear_count = sum(1 for score in scores if score < 40)
     latest_update = max(row.updated_at for row in rows if row.updated_at is not None)
     if latest_update.tzinfo is None:
-        latest_update = latest_update.replace(tzinfo=KST)
+        latest_update = latest_update.replace(tzinfo=timezone.utc)
     else:
         latest_update = latest_update.astimezone(KST)
+    latest_update = latest_update.astimezone(KST)
 
     if composite_score >= 80:
         status_label = "강한 과열"

@@ -25,7 +25,7 @@ api_router = APIRouter(prefix="/api/sentiment/cnn", tags=["cnn-sentiment"], incl
 
 def _to_kst(value: datetime) -> datetime:
     if value.tzinfo is None:
-        return value.replace(tzinfo=KST)
+        value = value.replace(tzinfo=timezone.utc)
     return value.astimezone(KST)
 
 
