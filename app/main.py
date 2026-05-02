@@ -85,7 +85,6 @@ app.add_middleware(
 
 @app.post("/auth/telegram")
 @app.post("/api/auth/telegram")
-@limiter.limit(get_settings().rate_limit_auth)
 async def auth_telegram(
     request: Request, 
     user_data: TelegramUser, 

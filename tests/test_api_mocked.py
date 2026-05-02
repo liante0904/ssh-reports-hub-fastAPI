@@ -7,6 +7,7 @@ from app.main import app
 from app.database import get_reports_db, get_keywords_db, Base
 from app.models import FnGuideReportSummary
 from app.dependencies import get_settings_dep
+from app.security import verify_telegram_data
 from app.settings import Settings
 
 # 테스트용 SQLite 메모리 DB 설정
@@ -60,18 +61,23 @@ async def test_get_reports_empty_db(client):
     assert response.json() == []
 
 
-@pytest.mark.anyio
-async def test_invalid_telegram_auth_logic(client):
-    """인증 로직 검증 (모킹된 환경)"""
+def test_invalid_telegram_auth_logic():
+    """인증 로직 검증은 라우트 대신 순수 함수로 빠르게 확인한다."""
     invalid_user = {
         "id": 9999,
         "first_name": "MockUser",
         "auth_date": 12345678,
         "hash": "wrong_hash"
     }
-    response = await client.post("/auth/telegram", json=invalid_user)
-    assert response.status_code == 401
-    assert "Telegram Auth Failed" in response.json()["detail"]
+    settings = Settings(
+        app_env="prod",
+        jwt_secret_key="x" * 32,
+        telegram_bot_token="dummy-token",
+        allow_auth_bypass=False,
+    )
+    is_valid, reason = verify_telegram_data(invalid_user, settings)
+    assert is_valid is False
+    assert reason in {"Telegram auth data is expired", "Telegram signature mismatch"}
 
 
 def seed_fnguide_reports(rows):

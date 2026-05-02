@@ -29,10 +29,9 @@
 ### Rate Limiting
 
 - `slowapi`를 적용해 기본 요청 제한을 둡니다.
-- `/auth/telegram`은 별도 제한값 `RATE_LIMIT_AUTH`를 적용합니다.
+- 현재는 공통 기본 제한만 적용합니다. `/auth/telegram` 전용 제한은 잠시 빼고 안정화 우선으로 두었습니다.
 - 기본값:
   - `RATE_LIMIT_DEFAULT=120/minute`
-  - `RATE_LIMIT_AUTH=10/minute`
 
 ### 입력 검증
 
@@ -65,7 +64,6 @@ TELEGRAM_AUTH_MAX_AGE_SECONDS=86400
 ALLOWED_TELEGRAM_USER_IDS=123456789
 CORS_ALLOW_ORIGINS=https://ssh-private-hub.netlify.app,https://ssh-oci.netlify.app,https://ssh-oci.duckdns.org,http://localhost:5174,http://localhost:5173,http://localhost:3000,http://localhost:8888
 RATE_LIMIT_DEFAULT=120/minute
-RATE_LIMIT_AUTH=10/minute
 ```
 
 ## 아직 인프라에서 처리해야 할 항목

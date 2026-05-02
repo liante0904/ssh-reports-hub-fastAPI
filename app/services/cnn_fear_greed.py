@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta, timezone
 from typing import Any
-
-import requests
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 CNN_API_URL = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
 CNN_HEADERS = {
@@ -40,9 +40,16 @@ def _parse_timestamp(value: str) -> datetime:
 
 
 def _fetch_json(url: str) -> dict[str, Any]:
-    response = requests.get(url, headers=CNN_HEADERS, timeout=10)
-    response.raise_for_status()
-    return response.json()
+    request = Request(url, headers=CNN_HEADERS)
+    try:
+        with urlopen(request, timeout=10) as response:
+            payload = response.read().decode("utf-8")
+    except HTTPError as exc:
+        raise RuntimeError(f"CNN request failed with status {exc.code}") from exc
+    except URLError as exc:
+        raise RuntimeError(f"CNN request failed: {exc.reason}") from exc
+
+    return json.loads(payload)
 
 
 def fetch_cnn_fear_greed_snapshot() -> dict[str, Any]:

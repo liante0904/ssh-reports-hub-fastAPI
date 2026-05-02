@@ -25,7 +25,6 @@ class Settings(BaseSettings):
     )
     allowed_telegram_user_ids: str = ""
     rate_limit_default: str = "120/minute"
-    rate_limit_auth: str = "10/minute"
 
     @property
     def allowed_origins(self) -> list[str]:
