@@ -40,6 +40,11 @@ class FnGuideReportSummaryResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+
+class FnGuideReportDateResponse(BaseModel):
+    report_date: str
+    report_count: int
+
 class CompanyResponse(BaseModel):
     name: str
     is_direct: bool
