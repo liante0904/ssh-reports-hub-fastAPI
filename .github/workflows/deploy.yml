@@ -97,7 +97,7 @@ jobs:
             docker compose up -d --no-build --force-recreate
 
             # 배포된 이미지의 리비전 확인
-            RUNNING_SHA="$(docker inspect ssh-private-hub-api-prod --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')"
+            RUNNING_SHA="$(docker inspect ssh-private-hub-fastAPI-pvt --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')"
             echo "Successfully deployed revision: $RUNNING_SHA"
 
             docker image prune -f
