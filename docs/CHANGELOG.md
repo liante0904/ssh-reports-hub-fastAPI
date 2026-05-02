@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-05-02
+
+### Added
+
+- FnGuide 리포트 요약 조회용 전용 테이블 `tbl_fnguide_report_summaries`를 추가했습니다.
+- `/pub/api/fnguide/report-summaries` 조회 라우터를 추가했습니다.
+
+### Changed
+
+- FnGuide 요약 데이터는 `tbl_sec_reports`와 분리된 별도 엔터티로 관리하도록 정리했습니다.
+
+### Verification
+
+- FastAPI 문법 검사 및 로컬 빌드 확인
+- FnGuide 워커는 별도 배치 앱으로 분리
+
 ## 2026-04-30
 
 ### Added

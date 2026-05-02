@@ -16,6 +16,30 @@ class SecReportResponse(BaseModel):
     writer: Optional[str] = None
     gemini_summary: Optional[str] = None
 
+
+class FnGuideReportSummaryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    summary_id: int
+    source_page_url: str
+    report_date: str
+    company_name: str
+    company_code: Optional[str] = None
+    report_title: str
+    summary_text: Optional[str] = None
+    opinion: Optional[str] = None
+    target_price: Optional[str] = None
+    prev_close: Optional[str] = None
+    provider: Optional[str] = None
+    author: Optional[str] = None
+    article_url: Optional[str] = None
+    pdf_url: Optional[str] = None
+    report_key: str
+    item_rank: Optional[int] = None
+    sync_status: Optional[int] = None
+    created_at: datetime
+    updated_at: datetime
+
 class CompanyResponse(BaseModel):
     name: str
     is_direct: bool
