@@ -4,6 +4,19 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
+import requests
+
+CNN_API_URL = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
+CNN_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/131.0.0.0 Safari/537.36"
+    ),
+    "Referer": "https://edition.cnn.com/",
+    "Accept": "application/json",
+}
+
 
 CNN_INDICATOR_TITLES = {
     "market_momentum_sp500": "Market Momentum",
@@ -24,12 +37,30 @@ def _parse_timestamp(value: str) -> datetime:
     return dt
 
 
-def fetch_cnn_fear_greed_snapshot() -> dict[str, Any]:
-    import fear_greed
+def _fetch_json(url: str) -> dict[str, Any]:
+    response = requests.get(url, headers=CNN_HEADERS, timeout=10)
+    response.raise_for_status()
+    return response.json()
 
-    payload = fear_greed.get()
-    timestamp = _parse_timestamp(payload["timestamp"])
-    indicators = payload.get("indicators", {})
+
+def fetch_cnn_fear_greed_snapshot() -> dict[str, Any]:
+    payload = _fetch_json(CNN_API_URL)
+    fear_greed = payload["fear_and_greed"]
+    historical_points = payload["fear_and_greed_historical"]["data"]
+    timestamp = _parse_timestamp(fear_greed["timestamp"])
+    indicators = {
+        key: payload.get(key, {})
+        for key in (
+            "market_momentum_sp500",
+            "stock_price_strength",
+            "stock_price_breadth",
+            "put_call_options",
+            "market_volatility_vix",
+            "safe_haven_demand",
+            "junk_bond_demand",
+        )
+        if key in payload
+    }
 
     normalized_indicators: dict[str, dict[str, Any]] = {}
     for key, data in indicators.items():
@@ -40,11 +71,22 @@ def fetch_cnn_fear_greed_snapshot() -> dict[str, Any]:
             "rating": str(data.get("rating", "neutral")),
         }
 
+    def _closest_history_score(days_ago: int) -> float | None:
+        target = datetime.now(timezone.utc).timestamp() * 1000 - (days_ago * 24 * 60 * 60 * 1000)
+        closest = min(historical_points, key=lambda item: abs(float(item["x"]) - target), default=None)
+        return round(float(closest["y"]), 2) if closest else None
+
     return {
-        "score": float(payload.get("score", 0.0)),
-        "rating": str(payload.get("rating", "neutral")),
+        "score": float(fear_greed.get("score", 0.0)),
+        "rating": str(fear_greed.get("rating", "neutral")),
         "timestamp": timestamp,
-        "history": payload.get("history", {}),
+        "history": {
+            "1w": round(float(fear_greed.get("previous_1_week", 0.0)), 2),
+            "1m": round(float(fear_greed.get("previous_1_month", 0.0)), 2),
+            "3m": _closest_history_score(90),
+            "6m": _closest_history_score(180),
+            "1y": round(float(fear_greed.get("previous_1_year", 0.0)), 2),
+        },
         "indicators": normalized_indicators,
         "raw": payload,
     }
