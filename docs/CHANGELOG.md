@@ -4,17 +4,39 @@
 
 ### Added
 
+- 백엔드 최소 검증 진입점 `make verify`를 추가했습니다.
+- 백엔드 문서 인덱스 `docs/README.md`를 추가했습니다.
+- CI/CD 및 릴리즈 흐름 문서 `docs/CI_CD.md`를 추가했습니다.
+- DART 공시 분석 보드 백엔드 기능을 추가했습니다. (`/pub/api/disclosure`)
+- CNN Fear & Greed 지수 직접 수집 및 일일 히스토리 관리 기능을 추가했습니다. (`/pub/api/cnn-sentiment`)
+- 종목별 컨센서스(Earnings Revision) 및 목표주가 추이 인사이트 엔드포인트를 추가했습니다. (`/pub/api/consensus`)
+- 투자 메모(`investment_notes`)에 부모-자식 계층 구조(Hierarchy) 기능을 추가했습니다.
+- 투자 메모 편집 시 리사이징 가능한 필드 구조를 적용했습니다.
+- 센티멘트 분석 API 및 테스트용 Mock 데이터를 추가했습니다.
 - FnGuide 리포트 요약 조회용 전용 테이블 `tbl_fnguide_report_summaries`를 추가했습니다.
 - `/pub/api/fnguide/report-summaries` 조회 라우터를 추가했습니다.
 
 ### Changed
 
+- README에 빠른 시작과 문서 진입점을 추가했습니다.
+- 현재 운영 방식에 맞춰 배포 전 검증 우선순위를 문서화했습니다.
+- `auth/telegram` 테스트의 장시간 대기를 없애기 위해 라우트 통합 테스트를 함수 검증으로 정리했습니다.
+- CNN 수집은 외부 HTTP 라이브러리 대신 표준 라이브러리 기반으로 단순화했습니다.
+- `make verify`는 `/tmp` 캐시를 사용하도록 조정했습니다.
+- 센티멘트 데이터의 타임스탬프를 KST 및 UTC 기준으로 정규화하여 일관성을 확보했습니다.
+- 텔레그램 인증 로직을 강화하고, 특정 환경에서 제어된 인증 우회 기능을 추가했습니다.
 - FnGuide 요약 데이터는 `tbl_sec_reports`와 분리된 별도 엔터티로 관리하도록 정리했습니다.
+
+### Fixed
+
+- GitHub Actions 배포 워크플로우(`deploy.yml`)의 컨테이너 경로 및 검사 로직 오류를 수정했습니다.
+- 투자 메모 라우팅 및 인증 처리의 보안 취약점을 보완했습니다.
 
 ### Verification
 
 - FastAPI 문법 검사 및 로컬 빌드 확인
-- FnGuide 워커는 별도 배치 앱으로 분리
+- 신규 API 엔드포인트(`disclosure`, `cnn-sentiment`, `consensus`, `sentiment`) 유닛 테스트 작성 및 통과
+- FnGuide 워커 동작 및 데이터 정합성 확인
 
 ## 2026-04-30
 
