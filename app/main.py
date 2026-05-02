@@ -9,6 +9,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.extension import _rate_limit_exceeded_handler
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
+from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
@@ -31,7 +32,26 @@ from .dependencies import get_user_from_token, oauth2_scheme, get_settings_dep
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=reports_engine)
     Base.metadata.create_all(bind=keywords_engine)
+    _ensure_investment_note_layout_columns(keywords_engine)
     yield
+
+
+def _ensure_investment_note_layout_columns(engine) -> None:
+    inspector = inspect(engine)
+    if "investment_notes" not in inspector.get_table_names():
+        return
+
+    existing_columns = {column["name"] for column in inspector.get_columns("investment_notes")}
+    migrations = {
+        "width": "width INTEGER DEFAULT 250",
+        "height": "height INTEGER DEFAULT 220",
+    }
+
+    for column_name, column_sql in migrations.items():
+        if column_name in existing_columns:
+            continue
+        with engine.begin() as conn:
+            conn.execute(text(f"ALTER TABLE investment_notes ADD COLUMN {column_sql}"))
 
 
 configure_sensitive_log_filter()

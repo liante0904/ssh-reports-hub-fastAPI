@@ -109,6 +109,8 @@ class InvestmentNoteBase(BaseModel):
     color_border: Optional[str] = None
     x_pos: int = 100
     y_pos: int = 100
+    width: int = 250
+    height: int = 220
     z_index: int = 10
 
     @field_validator("x_pos", "y_pos")
@@ -116,6 +118,13 @@ class InvestmentNoteBase(BaseModel):
     def check_coordinates(cls, v: int) -> int:
         if not (0 <= v <= 5000):
             raise ValueError("Coordinates must be between 0 and 5000")
+        return v
+
+    @field_validator("width", "height")
+    @classmethod
+    def check_size(cls, v: int) -> int:
+        if not (120 <= v <= 800):
+            raise ValueError("Size must be between 120 and 800")
         return v
 
     @field_validator("color_bg", "color_border")
@@ -136,6 +145,8 @@ class InvestmentNoteUpdate(BaseModel):
     color_border: Optional[str] = None
     x_pos: Optional[int] = None
     y_pos: Optional[int] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
     z_index: Optional[int] = None
 
 class InvestmentNoteResponse(InvestmentNoteBase):

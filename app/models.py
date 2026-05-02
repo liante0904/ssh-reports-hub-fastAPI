@@ -78,6 +78,8 @@ class InvestmentNote(Base, TimestampMixin):
     color_border = Column(String(20))
     x_pos = Column(Integer, default=100)
     y_pos = Column(Integer, default=100)
+    width = Column(Integer, default=250)
+    height = Column(Integer, default=220)
     z_index = Column(Integer, default=10)
 
     owner = relationship("User", back_populates="notes")
