@@ -193,3 +193,28 @@ class MarketSentimentDailySnapshot(Base):
     indicators_json = Column(Text, nullable=False, default="{}")
     raw_json = Column(Text, nullable=False, default="{}")
     fetched_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class DartDisclosure(Base):
+    __tablename__ = "tbm_dart_disclosures"
+
+    id = Column(Integer, primary_key=True, index=True)
+    source = Column(String, nullable=False, default="dart", index=True)
+    published_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    company_name = Column(String, nullable=False, index=True)
+    company_code = Column(String, nullable=True, index=True)
+    disclosure_title = Column(String, nullable=False)
+    disclosure_type = Column(String, nullable=False, default="공시")
+    insider_name = Column(String, nullable=True)
+    insider_role = Column(String, nullable=True)
+    transaction_type = Column(String, nullable=False, default="buy")
+    shares = Column(Float, nullable=True)
+    amount = Column(Float, nullable=True)
+    avg_price = Column(Float, nullable=True)
+    ownership_after = Column(Float, nullable=True)
+    signal_score = Column(Float, nullable=False, default=0.0)
+    summary_text = Column(Text, nullable=True)
+    dart_url = Column(String, nullable=True)
+    telegram_url = Column(String, nullable=True)
+    tags_json = Column(Text, nullable=False, default="[]")
+    fetched_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())

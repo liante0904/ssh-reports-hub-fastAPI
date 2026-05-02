@@ -1,7 +1,7 @@
 from datetime import datetime
 import re
 from typing import Optional, List
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 class SecReportResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -251,3 +251,38 @@ class CNNFearGreedDailySnapshotResponse(BaseModel):
     history: dict
     indicators: dict[str, CNNFearGreedIndicatorResponse]
     fetched_at: datetime
+
+
+class DartDisclosureResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    source: str
+    published_at: datetime
+    company_name: str
+    company_code: Optional[str] = None
+    disclosure_title: str
+    disclosure_type: str
+    insider_name: Optional[str] = None
+    insider_role: Optional[str] = None
+    transaction_type: str
+    shares: Optional[float] = None
+    amount: Optional[float] = None
+    avg_price: Optional[float] = None
+    ownership_after: Optional[float] = None
+    signal_score: float
+    summary_text: Optional[str] = None
+    dart_url: Optional[str] = None
+    telegram_url: Optional[str] = None
+    tags: list[str] = Field(default_factory=list)
+    fetched_at: datetime
+
+
+class DartDisclosureSummaryResponse(BaseModel):
+    total_count: int
+    buy_count: int
+    sell_count: int
+    insider_buy_count: int
+    executive_buy_count: int
+    net_buy_amount: float
+    latest_update: datetime

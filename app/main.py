@@ -15,7 +15,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from .database import Base, get_keywords_db, keywords_engine, reports_engine
 from .models import ReportKeyword, User
-from .routers import ords_compat, pub_api, reports, consensus, notes, fnguide_reports, sentiment, cnn_sentiment
+from .routers import ords_compat, pub_api, reports, consensus, notes, fnguide_reports, sentiment, cnn_sentiment, disclosure
 from .schemas import KeywordCreate, KeywordResponse, KeywordSyncRequest, TelegramUser
 from .security import (
     SecurityHeadersMiddleware,
@@ -34,6 +34,7 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=keywords_engine)
     _ensure_investment_note_layout_columns(keywords_engine)
     sentiment.seed_mock_sentiment_indicators(reports_engine)
+    disclosure.seed_mock_disclosures(reports_engine)
     yield
 
 
@@ -202,6 +203,8 @@ app.include_router(sentiment.router)
 app.include_router(sentiment.api_router)
 app.include_router(cnn_sentiment.router)
 app.include_router(cnn_sentiment.api_router)
+app.include_router(disclosure.router)
+app.include_router(disclosure.api_router)
 
 
 @app.get("/health")
