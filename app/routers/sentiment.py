@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from statistics import mean
 
 from fastapi import APIRouter, Depends
@@ -13,6 +13,8 @@ from ..schemas import MarketSentimentIndicatorResponse, MarketSentimentSummaryRe
 
 router = APIRouter(prefix="/sentiment", tags=["sentiment"])
 api_router = APIRouter(prefix="/api/sentiment", tags=["sentiment"], include_in_schema=False)
+
+KST = timezone(timedelta(hours=9))
 
 MOCK_SENTIMENT_INDICATORS = [
     {
@@ -108,7 +110,7 @@ def _summary_payload(rows):
             "overheat_count": 0,
             "neutral_count": 0,
             "fear_count": 0,
-            "latest_update": datetime.now(),
+            "latest_update": datetime.now(KST),
         }
 
     scores = [float(row.score or 0.0) for row in rows]
@@ -117,6 +119,10 @@ def _summary_payload(rows):
     neutral_count = sum(1 for score in scores if 40 <= score < 70)
     fear_count = sum(1 for score in scores if score < 40)
     latest_update = max(row.updated_at for row in rows if row.updated_at is not None)
+    if latest_update.tzinfo is None:
+        latest_update = latest_update.replace(tzinfo=KST)
+    else:
+        latest_update = latest_update.astimezone(KST)
 
     if composite_score >= 80:
         status_label = "강한 과열"

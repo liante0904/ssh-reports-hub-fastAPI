@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import requests
@@ -16,6 +16,8 @@ CNN_HEADERS = {
     "Referer": "https://edition.cnn.com/",
     "Accept": "application/json",
 }
+
+KST = timezone(timedelta(hours=9))
 
 
 CNN_INDICATOR_TITLES = {
@@ -34,7 +36,7 @@ def _parse_timestamp(value: str) -> datetime:
     dt = datetime.fromisoformat(normalized)
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
-    return dt
+    return dt.astimezone(KST)
 
 
 def _fetch_json(url: str) -> dict[str, Any]:

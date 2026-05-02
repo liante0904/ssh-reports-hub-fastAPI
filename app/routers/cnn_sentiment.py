@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -14,6 +15,8 @@ from ..schemas import (
     CNNFearGreedSnapshotResponse,
 )
 from ..services.cnn_fear_greed import fetch_cnn_fear_greed_snapshot, to_json
+
+KST = timezone(timedelta(hours=9))
 
 router = APIRouter(prefix="/sentiment/cnn", tags=["cnn-sentiment"])
 api_router = APIRouter(prefix="/api/sentiment/cnn", tags=["cnn-sentiment"], include_in_schema=False)
@@ -84,10 +87,22 @@ def _store_snapshot(db: Session, snapshot: dict) -> MarketSentimentSnapshot:
 
 
 def _snapshot_to_response(row: MarketSentimentSnapshot) -> CNNFearGreedSnapshotResponse:
+    snapshot_ts = row.snapshot_ts
+    if snapshot_ts.tzinfo is None:
+        snapshot_ts = snapshot_ts.replace(tzinfo=KST)
+    else:
+        snapshot_ts = snapshot_ts.astimezone(KST)
+
+    fetched_at = row.fetched_at
+    if fetched_at.tzinfo is None:
+        fetched_at = fetched_at.replace(tzinfo=KST)
+    else:
+        fetched_at = fetched_at.astimezone(KST)
+
     return CNNFearGreedSnapshotResponse(
         id=row.id,
         source=row.source,
-        snapshot_ts=row.snapshot_ts,
+        snapshot_ts=snapshot_ts,
         score=row.score,
         rating=row.rating,
         history=json.loads(row.history_json or "{}"),
@@ -95,7 +110,7 @@ def _snapshot_to_response(row: MarketSentimentSnapshot) -> CNNFearGreedSnapshotR
             key: CNNFearGreedIndicatorResponse(**value)
             for key, value in json.loads(row.indicators_json or "{}").items()
         },
-        fetched_at=row.fetched_at,
+        fetched_at=fetched_at,
     )
 
 
