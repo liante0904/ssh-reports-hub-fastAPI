@@ -51,6 +51,13 @@ class CompanyResponse(BaseModel):
     note: Optional[str] = None
     report_count: int
 
+class BoardResponse(BaseModel):
+    sec_firm_order: int
+    article_board_order: int
+    board_nm: str
+    label_nm: Optional[str] = None
+    report_count: int = 0
+
 class TelegramUser(BaseModel):
     id: int
     first_name: str

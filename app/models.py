@@ -91,6 +91,16 @@ class SecFirmInfo(Base):
     is_direct_link = Column("telegram_update_yn", String, default="N")
     description = Column("COMMENT_PDF_URL", String, nullable=True)
 
+
+class SecBoardInfo(Base):
+    __tablename__ = "tbm_sec_firm_board_info"
+    sec_firm_order = Column(Integer, primary_key=True)
+    article_board_order = Column(Integer, primary_key=True)
+    board_nm = Column(String)
+    board_cd = Column(String, nullable=True)
+    label_nm = Column(String, nullable=True)
+
+
 class InvestmentNote(Base, TimestampMixin):
     __tablename__ = "investment_notes"
 
@@ -107,6 +117,7 @@ class InvestmentNote(Base, TimestampMixin):
     parent_id = Column(Integer, nullable=True, index=True)
 
     owner = relationship("User", back_populates="notes")
+
 
 class ReportSentHistory(Base):
     __tablename__ = "tbl_report_send_history"

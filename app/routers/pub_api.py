@@ -5,8 +5,8 @@ from sqlalchemy import and_, or_, func
 from sqlalchemy.orm import Session
 
 from ..database import get_reports_db
-from ..models import SecReport, SecFirmInfo
-from ..schemas import CompanyResponse
+from ..models import SecReport, SecFirmInfo, SecBoardInfo
+from ..schemas import CompanyResponse, BoardResponse
 
 # 새로운 주소 체계를 위한 라우터 (레거시 ords_compat부와 로직 동일)
 router = APIRouter(prefix="/pub/api", tags=["public-api"])
@@ -40,6 +40,48 @@ async def get_companies(db: Session = Depends(get_reports_db)):
             name=row.sec_firm_name,
             is_direct=(row.is_direct_link == 'Y'),
             note=row.description,
+            report_count=row.report_count
+        ) for row in results
+    ]
+
+@router.get("/boards", response_model=list[BoardResponse], summary="특정 증권사의 게시판 목록 조회")
+async def get_boards(
+    company: Annotated[int, Query(ge=0)],
+    db: Session = Depends(get_reports_db)
+):
+    """
+    TBM_SEC_FIRM_BOARD_INFO와 SecReport를 JOIN하여 
+    리포트가 존재하는 게시판 목록을 반환합니다.
+    """
+    query = db.query(
+        SecBoardInfo.sec_firm_order,
+        SecBoardInfo.article_board_order,
+        SecBoardInfo.board_nm,
+        SecBoardInfo.label_nm,
+        func.count(SecReport.report_id).label("report_count")
+    ).outerjoin(
+        SecReport, and_(
+            SecBoardInfo.sec_firm_order == SecReport.sec_firm_order,
+            SecBoardInfo.article_board_order == SecReport.article_board_order,
+            SecReport.main_ch_send_yn == 'Y'
+        )
+    ).filter(
+        SecBoardInfo.sec_firm_order == company
+    ).group_by(
+        SecBoardInfo.sec_firm_order,
+        SecBoardInfo.article_board_order,
+        SecBoardInfo.board_nm,
+        SecBoardInfo.label_nm
+    ).order_by(SecBoardInfo.article_board_order.asc())
+
+    results = query.all()
+
+    return [
+        BoardResponse(
+            sec_firm_order=row.sec_firm_order,
+            article_board_order=row.article_board_order,
+            board_nm=row.board_nm,
+            label_nm=row.label_nm,
             report_count=row.report_count
         ) for row in results
     ]
@@ -127,6 +169,7 @@ def _apply_legacy_search_filters(
     title: Optional[str],
     mkt_tp: Optional[str],
     company: Optional[int],
+    board: Optional[int] = None,
 ):
     if writer:
         query = query.filter(SecReport.writer.ilike(f"%{writer}%"))
@@ -138,6 +181,8 @@ def _apply_legacy_search_filters(
         query = query.filter(SecReport.mkt_tp == "KR")
     if company is not None:
         query = query.filter(SecReport.sec_firm_order == company)
+    if board is not None:
+        query = query.filter(SecReport.article_board_order == board)
     return query
 
 
@@ -150,6 +195,7 @@ async def get_industry_reports(
     title: Annotated[Optional[str], Query(min_length=1, max_length=100)] = None,
     mkt_tp: Annotated[Optional[str], Query(pattern="^(global|domestic)$")] = None,
     company: Annotated[Optional[int], Query(ge=0)] = None,
+    board: Annotated[Optional[int], Query(ge=0)] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
     db: Session = Depends(get_reports_db),
@@ -172,7 +218,7 @@ async def get_industry_reports(
     )
     if last_report_id is not None:
         query = query.filter(SecReport.report_id < last_report_id)
-    query = _apply_legacy_search_filters(query, writer, title, mkt_tp, company)
+    query = _apply_legacy_search_filters(query, writer, title, mkt_tp, company, board)
 
     rows, has_more = _paginate_ords_query(
         query.order_by(SecReport.report_id.desc()),
@@ -191,6 +237,7 @@ async def search_reports(
     title: Annotated[Optional[str], Query(min_length=1, max_length=100)] = None,
     mkt_tp: Annotated[Optional[str], Query(pattern="^(global|domestic)$")] = None,
     company: Annotated[Optional[int], Query(ge=0)] = None,
+    board: Annotated[Optional[int], Query(ge=0)] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
     db: Session = Depends(get_reports_db),
@@ -203,7 +250,7 @@ async def search_reports(
     )
     if report_id is not None:
         query = query.filter(SecReport.report_id == report_id)
-    query = _apply_legacy_search_filters(query, writer, title, mkt_tp, company)
+    query = _apply_legacy_search_filters(query, writer, title, mkt_tp, company, board)
 
     if report_id is not None:
         query = query.order_by(SecReport.report_id.desc())
