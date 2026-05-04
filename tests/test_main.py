@@ -5,6 +5,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from app.database import Base, get_reports_db, get_keywords_db
 from app.main import app
+from app.dependencies import get_settings_dep
+from app.settings import Settings
 
 from app.models import SecReport, MarketSentimentIndicator
 
@@ -215,7 +217,35 @@ async def test_auth_telegram_invalid(client):
     # 개발 환경에서는 바이패스가 켜질 수 있으므로, 응답 형태만 검증한다.
     assert response.status_code in {200, 401}
     if response.status_code == 401:
-        assert response.json()["detail"] == "Telegram Auth Failed"
+        assert response.json()["detail"].startswith("Telegram Auth Failed")
     else:
         payload = response.json()
         assert "access_token" in payload
+
+
+@pytest.mark.anyio
+async def test_auth_telegram_missing_bot_token_returns_503(client):
+    async def override_get_settings_dep():
+        return Settings(
+            app_env="prod",
+            jwt_secret_key="x" * 32,
+            telegram_bot_token="",
+            allow_auth_bypass=False,
+        )
+
+    app.dependency_overrides[get_settings_dep] = override_get_settings_dep
+    try:
+        response = await client.post(
+            "/auth/telegram",
+            json={
+                "id": 123456,
+                "first_name": "Test",
+                "auth_date": 1600000000,
+                "hash": "invalid_hash",
+            },
+        )
+    finally:
+        app.dependency_overrides.pop(get_settings_dep, None)
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Telegram bot token is not configured"

@@ -1,3 +1,4 @@
+import logging
 import time
 from contextlib import asynccontextmanager
 
@@ -22,7 +23,6 @@ from .routers import (
     fnguide_reports,
     notes,
     ords_compat,
-    pub_api,
     reports,
     sentiment,
 )
@@ -36,6 +36,9 @@ from .security import (
 )
 from .settings import get_settings, Settings
 from .dependencies import get_user_from_token, oauth2_scheme, get_settings_dep
+
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -103,10 +106,23 @@ async def auth_telegram(
 ):
     # 개발 모드에서만 로컬 바이패스를 허용한다.
     is_bypass = user_data.hash == "bypass" or settings.app_env == "dev" or settings.allow_auth_bypass
-    
+
     if not is_bypass:
+        if not settings.clean_telegram_bot_token:
+            raise HTTPException(status_code=503, detail="Telegram bot token is not configured")
+
         is_valid, reason = verify_telegram_data(user_data.model_dump(), settings)
         if not is_valid:
+            logger.warning("Telegram auth rejected for user_id=%s: %s", user_data.id, reason)
+            if reason == "Telegram signature mismatch":
+                raise HTTPException(
+                    status_code=401,
+                    detail=(
+                        "Telegram Auth Failed: Telegram signature mismatch. "
+                        "Check that the frontend VITE_TELEGRAM_BOT_USERNAME matches the bot "
+                        "whose token is configured as TELEGRAM_BOT_TOKEN."
+                    ),
+                )
             raise HTTPException(status_code=401, detail=f"Telegram Auth Failed: {reason}")
 
     allowed_ids = settings.telegram_allowed_user_ids
@@ -202,7 +218,6 @@ async def update_keyword(
 
 
 app.include_router(reports.router)
-app.include_router(pub_api.router)
 app.include_router(fnguide_reports.router)
 app.include_router(ords_compat.router)
 app.include_router(consensus.router)
