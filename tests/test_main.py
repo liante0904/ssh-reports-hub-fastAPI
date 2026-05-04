@@ -249,3 +249,33 @@ async def test_auth_telegram_missing_bot_token_returns_503(client):
 
     assert response.status_code == 503
     assert response.json()["detail"] == "Telegram bot token is not configured"
+
+
+@pytest.mark.anyio
+async def test_auth_telegram_whitelisted_user_skips_signature_check(client):
+    async def override_get_settings_dep():
+        return Settings(
+            app_env="prod",
+            jwt_secret_key="x" * 32,
+            telegram_bot_token="dummy-token",
+            allowed_telegram_user_ids="123456",
+            allow_auth_bypass=False,
+        )
+
+    app.dependency_overrides[get_settings_dep] = override_get_settings_dep
+    try:
+        response = await client.post(
+            "/auth/telegram",
+            json={
+                "id": 123456,
+                "first_name": "Test",
+                "auth_date": 1600000000,
+                "hash": "invalid_hash",
+            },
+        )
+    finally:
+        app.dependency_overrides.pop(get_settings_dep, None)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "access_token" in payload

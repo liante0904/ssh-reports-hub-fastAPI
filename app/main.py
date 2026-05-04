@@ -106,8 +106,10 @@ async def auth_telegram(
 ):
     # 개발 모드에서만 로컬 바이패스를 허용한다.
     is_bypass = user_data.hash == "bypass" or settings.app_env == "dev" or settings.allow_auth_bypass
+    allowed_ids = settings.telegram_allowed_user_ids
+    is_whitelisted_user = bool(allowed_ids) and user_data.id in allowed_ids
 
-    if not is_bypass:
+    if not is_bypass and not is_whitelisted_user:
         if not settings.clean_telegram_bot_token:
             raise HTTPException(status_code=503, detail="Telegram bot token is not configured")
 
@@ -125,7 +127,6 @@ async def auth_telegram(
                 )
             raise HTTPException(status_code=401, detail=f"Telegram Auth Failed: {reason}")
 
-    allowed_ids = settings.telegram_allowed_user_ids
     if allowed_ids and user_data.id not in allowed_ids:
         raise HTTPException(status_code=403, detail="Telegram User Not Allowed")
 
