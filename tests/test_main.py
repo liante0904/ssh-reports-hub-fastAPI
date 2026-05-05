@@ -186,6 +186,39 @@ async def test_search_reports(client):
 
 
 @pytest.mark.anyio
+async def test_board_filter_reports(client):
+    """증권사와 게시판 필터를 함께 적용하면 정확히 좁혀지는지 확인"""
+    response = await client.get("/reports?company=20&board=1&limit=10")
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list)
+    assert len(data) == 1
+    assert data[0]["report_id"] == 3
+
+
+@pytest.mark.anyio
+async def test_ords_search_board_filter(client):
+    """레거시 ORDS 검색 경로에서도 board 필터가 동작하는지 확인"""
+    response = await client.get("/ords/admin/data_main_daily_send/search?company=20&board=1&limit=10")
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, dict)
+    assert data["count"] == 1
+    assert data["items"][0]["report_id"] == 3
+
+
+@pytest.mark.anyio
+async def test_pub_api_search_board_filter(client):
+    """공용 API에서 회사와 게시판 필터가 함께 동작하는지 확인"""
+    response = await client.get("/pub/api/search?company=20&board=1&limit=10")
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, dict)
+    assert data["count"] == 1
+    assert data["items"][0]["report_id"] == 3
+
+
+@pytest.mark.anyio
 async def test_get_sentiment_indicators(client):
     response = await client.get("/sentiment")
     assert response.status_code == 200

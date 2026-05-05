@@ -139,11 +139,12 @@ def _ords_collection_response(
 ) -> dict:
     processed_items = []
     for item in items:
-        if isinstance(item, tuple):
+        try:
             report, is_direct_link = item
-            processed_items.append(_report_to_ords_item(report, is_direct_link == 'Y'))
-        else:
+        except (TypeError, ValueError):
             processed_items.append(_report_to_ords_item(item))
+        else:
+            processed_items.append(_report_to_ords_item(report, is_direct_link == 'Y'))
 
     return {
         "items": processed_items,

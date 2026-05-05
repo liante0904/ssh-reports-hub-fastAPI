@@ -83,6 +83,7 @@ def _apply_legacy_search_filters(
     title: Optional[str],
     mkt_tp: Optional[str],
     company: Optional[int],
+    board: Optional[int] = None,
 ):
     if writer:
         query = query.filter(SecReport.writer.ilike(f"%{writer}%"))
@@ -94,6 +95,8 @@ def _apply_legacy_search_filters(
         query = query.filter(SecReport.mkt_tp == "KR")
     if company is not None:
         query = query.filter(SecReport.sec_firm_order == company)
+    if board is not None:
+        query = query.filter(SecReport.article_board_order == board)
     return query
 
 
@@ -106,6 +109,7 @@ async def get_ords_industry_reports(
     title: Annotated[Optional[str], Query(min_length=1, max_length=100)] = None,
     mkt_tp: Annotated[Optional[str], Query(pattern="^(global|domestic)$")] = None,
     company: Annotated[Optional[int], Query(ge=0)] = None,
+    board: Annotated[Optional[int], Query(ge=0)] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
     db: Session = Depends(get_reports_db),
@@ -123,7 +127,7 @@ async def get_ords_industry_reports(
     )
     if last_report_id is not None:
         query = query.filter(SecReport.report_id < last_report_id)
-    query = _apply_legacy_search_filters(query, writer, title, mkt_tp, company)
+    query = _apply_legacy_search_filters(query, writer, title, mkt_tp, company, board)
 
     rows, has_more = _paginate_ords_query(
         query.order_by(SecReport.report_id.desc()),
@@ -142,6 +146,7 @@ async def search_ords_reports(
     title: Annotated[Optional[str], Query(min_length=1, max_length=100)] = None,
     mkt_tp: Annotated[Optional[str], Query(pattern="^(global|domestic)$")] = None,
     company: Annotated[Optional[int], Query(ge=0)] = None,
+    board: Annotated[Optional[int], Query(ge=0)] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
     db: Session = Depends(get_reports_db),
@@ -149,7 +154,7 @@ async def search_ords_reports(
     query = db.query(SecReport)
     if report_id is not None:
         query = query.filter(SecReport.report_id == report_id)
-    query = _apply_legacy_search_filters(query, writer, title, mkt_tp, company)
+    query = _apply_legacy_search_filters(query, writer, title, mkt_tp, company, board)
 
     if report_id is not None:
         query = query.order_by(SecReport.report_id.desc())
