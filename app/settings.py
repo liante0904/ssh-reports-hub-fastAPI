@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     )
     allowed_telegram_user_ids: str = ""
     rate_limit_default: str = "120/minute"
+    screening_files_path: str = "/screening_files"
 
     @property
     def allowed_origins(self) -> list[str]:

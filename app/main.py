@@ -25,6 +25,7 @@ from .routers import (
     notes,
     ords_compat,
     reports,
+    screening,
     sentiment,
 )
 from .schemas import KeywordCreate, KeywordResponse, KeywordSyncRequest, TelegramUser
@@ -232,6 +233,7 @@ app.include_router(cnn_sentiment.router)
 app.include_router(cnn_sentiment.api_router)
 app.include_router(disclosure.router)
 app.include_router(disclosure.api_router)
+app.include_router(screening.router)
 
 
 @app.get("/health")
