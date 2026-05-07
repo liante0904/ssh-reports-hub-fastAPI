@@ -1,6 +1,6 @@
 import os
 import time
-from sqlalchemy import Column, Integer, String, Boolean, BigInteger, ForeignKey, Date, DateTime, Float, func, Text, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Boolean, BigInteger, ForeignKey, Date, DateTime, Float, func, Text, UniqueConstraint, Index
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -24,6 +24,21 @@ class User(Base):
     created_at = Column(BigInteger, default=lambda: int(time.time()))
     keywords = relationship("ReportKeyword", back_populates="owner")
     notes = relationship("InvestmentNote", back_populates="owner", cascade="all, delete-orphan")
+    favorites = relationship("ReportFavorite", back_populates="owner", cascade="all, delete-orphan")
+
+
+class ReportFavorite(Base):
+    __tablename__ = "tbm_sec_reports_favorites"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(BigInteger, ForeignKey("tbm_sec_reports_telegram_users.id", ondelete="CASCADE"), nullable=False)
+    report_id = Column(BigInteger, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    owner = relationship("User", back_populates="favorites")
+    __table_args__ = (
+        UniqueConstraint("user_id", "report_id", name="uq_user_report_favorite"),
+        Index("idx_favorites_user_id", "user_id"),
+        Index("idx_favorites_report_id", "report_id"),
+    )
 
 class ReportKeyword(Base, TimestampMixin):
     __tablename__ = "tbm_sec_reports_alert_keywords"

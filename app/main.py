@@ -21,9 +21,11 @@ from .routers import (
     cnn_sentiment,
     consensus,
     disclosure,
+    favorites,
     fnguide_reports,
     notes,
     ords_compat,
+    pub_api,
     reports,
     screening,
     sentiment,
@@ -222,6 +224,7 @@ async def update_keyword(
 
 app.include_router(admin.router)
 app.include_router(reports.router)
+app.include_router(pub_api.router)
 app.include_router(fnguide_reports.router)
 app.include_router(ords_compat.router)
 app.include_router(consensus.router)
@@ -233,7 +236,8 @@ app.include_router(cnn_sentiment.router)
 app.include_router(cnn_sentiment.api_router)
 app.include_router(disclosure.router)
 app.include_router(disclosure.api_router)
-app.include_router(screening.router)
+    app.include_router(screening.router)
+    app.include_router(favorites.router)
 
 
 @app.get("/health")

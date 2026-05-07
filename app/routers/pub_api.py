@@ -239,6 +239,7 @@ async def search_reports(
     mkt_tp: Annotated[Optional[str], Query(pattern="^(global|domestic)$")] = None,
     company: Annotated[Optional[int], Query(ge=0)] = None,
     board: Annotated[Optional[int], Query(ge=0)] = None,
+    has_summary: Annotated[Optional[bool], Query()] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
     db: Session = Depends(get_reports_db),
@@ -252,6 +253,14 @@ async def search_reports(
     if report_id is not None:
         query = query.filter(SecReport.report_id == report_id)
     query = _apply_legacy_search_filters(query, writer, title, mkt_tp, company, board)
+
+    # AI 요약이 있는 리포트만 필터링
+    if has_summary:
+        query = query.filter(
+            SecReport.gemini_summary.isnot(None),
+            SecReport.gemini_summary != "",
+            SecReport.gemini_summary != " ",
+        )
 
     if report_id is not None:
         query = query.order_by(SecReport.report_id.desc())
