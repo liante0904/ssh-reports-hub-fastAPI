@@ -20,6 +20,7 @@ class User(Base):
     username = Column(String, nullable=True)
     photo_url = Column(String, nullable=True)
     status = Column(String, default="active")
+    is_admin = Column(Boolean, default=False)
     created_at = Column(BigInteger, default=lambda: int(time.time()))
     keywords = relationship("ReportKeyword", back_populates="owner")
     notes = relationship("InvestmentNote", back_populates="owner", cascade="all, delete-orphan")

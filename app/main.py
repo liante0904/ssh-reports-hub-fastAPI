@@ -17,6 +17,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from .database import Base, get_keywords_db, keywords_engine, reports_engine
 from .models import ReportKeyword, User
 from .routers import (
+    admin,
     cnn_sentiment,
     consensus,
     disclosure,
@@ -149,7 +150,7 @@ async def auth_telegram(
     db.commit()
     db.refresh(db_user)
     access_token = create_access_token(db_user.id, settings)
-    return {"access_token": access_token, "token_type": "bearer", "user": {"id": db_user.id, "status": db_user.status}}
+    return {"access_token": access_token, "token_type": "bearer", "user": {"id": db_user.id, "status": db_user.status, "is_admin": db_user.is_admin}}
 
 
 @app.get("/keywords", response_model=list[KeywordResponse])
@@ -218,6 +219,7 @@ async def update_keyword(
     return db_keyword
 
 
+app.include_router(admin.router)
 app.include_router(reports.router)
 app.include_router(fnguide_reports.router)
 app.include_router(ords_compat.router)

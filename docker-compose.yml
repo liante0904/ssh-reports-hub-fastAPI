@@ -1,7 +1,7 @@
 services:
   fastapi:
     build: .
-    container_name: ssh-private-hub-fastAPI-pvt
+    container_name: ssh-reports-hub-fastapi-prod
     user: "1001:1001"
     ports:
       - "8002:8000"
