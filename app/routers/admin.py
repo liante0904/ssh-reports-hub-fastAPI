@@ -5,8 +5,13 @@
 from __future__ import annotations
 
 import logging
+import os
+import time
+from datetime import datetime, timezone
 
+import psutil
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from ..database import get_keywords_db, get_reports_db
@@ -159,4 +164,139 @@ async def trigger_summarize(
         "report_id": report_id,
         "status": "error",
         "error": result.get("error", "Unknown error"),
+    }
+
+
+@router.get("/metrics")
+async def get_system_metrics(
+    current_user: User = Depends(require_admin),
+    reports_db: Session = Depends(get_reports_db),
+    keywords_db: Session = Depends(get_keywords_db),
+):
+    """
+    시스템 메트릭 (CPU, RAM, Disk, DB 상태, 레포트 통계)을 반환합니다.
+    관리자만 접근 가능합니다.
+    """
+    # --- CPU ---
+    cpu_percent = psutil.cpu_percent(interval=0.5)
+    cpu_count = psutil.cpu_count()
+    cpu_freq = psutil.cpu_freq()
+    cpu_freq_mhz = round(cpu_freq.current, 1) if cpu_freq else None
+
+    # --- Memory ---
+    mem = psutil.virtual_memory()
+    mem_total_gb = round(mem.total / (1024 ** 3), 2)
+    mem_used_gb = round(mem.used / (1024 ** 3), 2)
+    mem_percent = mem.percent
+
+    # --- Disk (메인 데이터 경로) ---
+    disk_path = os.getenv("DISK_CHECK_PATH", "/")
+    try:
+        disk = psutil.disk_usage(disk_path)
+        disk_total_gb = round(disk.total / (1024 ** 3), 1)
+        disk_used_gb = round(disk.used / (1024 ** 3), 1)
+        disk_percent = disk.percent
+    except Exception:
+        disk_total_gb = 0
+        disk_used_gb = 0
+        disk_percent = 0
+
+    # --- System uptime ---
+    boot_time = datetime.fromtimestamp(psutil.boot_time())
+    uptime_days = round((datetime.now() - boot_time).total_seconds() / 86400, 1)
+
+    # --- DB health check ---
+    db_ok = False
+    db_latency_ms = None
+    try:
+        t0 = time.time()
+        keywords_db.execute(text("SELECT 1"))
+        t1 = time.time()
+        db_ok = True
+        db_latency_ms = round((t1 - t0) * 1000, 1)
+    except Exception as e:
+        logger.warning("DB health check failed: %s", e)
+
+    # --- Report statistics ---
+    total_reports = 0
+    today_reports = 0
+    reports_by_firm = []
+    last_report_time = None
+    last_report_title = None
+    last_report_firm = None
+
+    try:
+        total_reports = reports_db.query(func.count(SecReport.report_id)).scalar() or 0
+
+        today_str = datetime.now().strftime("%Y%m%d")
+        today_reports = (
+            reports_db.query(func.count(SecReport.report_id))
+            .filter(SecReport.reg_dt == today_str)
+            .scalar()
+            or 0
+        )
+
+        # 증권사별 오늘 건수 (최대 10개)
+        if DB_BACKEND := os.getenv("DB_BACKEND", "sqlite").lower() == "postgres":
+            rows = (
+                reports_db.query(SecReport.firm_nm, func.count(SecReport.report_id))
+                .filter(SecReport.reg_dt == today_str)
+                .group_by(SecReport.firm_nm)
+                .order_by(func.count(SecReport.report_id).desc())
+                .limit(10)
+                .all()
+            )
+            reports_by_firm = [{"firm": row[0], "count": row[1]} for row in rows]
+
+        # 최근 레포트
+        latest = (
+            reports_db.query(SecReport)
+            .order_by(SecReport.save_time.desc())
+            .first()
+        )
+        if latest:
+            last_report_time = latest.save_time
+            last_report_title = latest.article_title
+            last_report_firm = latest.firm_nm
+
+    except Exception as e:
+        logger.warning("Report stats query failed: %s", e)
+
+    return {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "overall": "online" if db_ok else "degraded",
+        "system": {
+            "hostname": os.uname().nodename,
+            "uptime_days": uptime_days,
+            "python_version": os.getenv("PYTHON_VERSION", __import__("sys").version),
+        },
+        "cpu": {
+            "percent": cpu_percent,
+            "cores": cpu_count,
+            "frequency_mhz": cpu_freq_mhz,
+        },
+        "memory": {
+            "total_gb": mem_total_gb,
+            "used_gb": mem_used_gb,
+            "percent": mem_percent,
+        },
+        "disk": {
+            "total_gb": disk_total_gb,
+            "used_gb": disk_used_gb,
+            "percent": disk_percent,
+        },
+        "database": {
+            "status": "online" if db_ok else "offline",
+            "latency_ms": db_latency_ms,
+        },
+        "reports": {
+            "total": total_reports,
+            "today_inserts": today_reports,
+            "by_firm_today": reports_by_firm,
+        },
+        "last_activity": {
+            "last_save_time": last_report_time,
+            "last_title": last_report_title,
+            "last_firm": last_report_firm,
+        },
     }
