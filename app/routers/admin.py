@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 import os
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import psutil
@@ -222,7 +222,9 @@ async def get_system_metrics(
     # --- Report statistics ---
     total_reports = 0
     today_reports = 0
-    reports_by_firm = []
+    reports_by_firm: list[dict] = []
+    archive_history: list[dict] = []
+    active_firms_today = 0
     last_report_time = None
     last_report_title = None
     last_report_firm = None
@@ -238,17 +240,37 @@ async def get_system_metrics(
             or 0
         )
 
-        # 증권사별 오늘 건수 (최대 10개)
-        if DB_BACKEND := os.getenv("DB_BACKEND", "sqlite").lower() == "postgres":
-            rows = (
-                reports_db.query(SecReport.firm_nm, func.count(SecReport.report_id))
-                .filter(SecReport.reg_dt == today_str)
-                .group_by(SecReport.firm_nm)
-                .order_by(func.count(SecReport.report_id).desc())
-                .limit(10)
-                .all()
-            )
-            reports_by_firm = [{"firm": row[0], "count": row[1]} for row in rows]
+        # 증권사별 오늘 건수 (PostgreSQL / SQLite 모두)
+        rows = (
+            reports_db.query(SecReport.firm_nm, func.count(SecReport.report_id))
+            .filter(SecReport.reg_dt == today_str)
+            .group_by(SecReport.firm_nm)
+            .order_by(func.count(SecReport.report_id).desc())
+            .limit(10)
+            .all()
+        )
+        reports_by_firm = [{"firm": row[0], "count": row[1]} for row in rows]
+        active_firms_today = len(reports_by_firm)
+
+        # 최근 7일 일별 건수 (archive_history)
+        seven_days_ago = (datetime.now() - timedelta(days=6)).strftime("%Y%m%d")
+        daily_rows = (
+            reports_db.query(SecReport.reg_dt, func.count(SecReport.report_id))
+            .filter(SecReport.reg_dt >= seven_days_ago)
+            .group_by(SecReport.reg_dt)
+            .order_by(SecReport.reg_dt.asc())
+            .all()
+        )
+        daily_map = {row[0]: row[1] for row in daily_rows}
+        for i in range(7):
+            d = (datetime.now() - timedelta(days=6 - i))
+            date_str = d.strftime("%Y%m%d")
+            label = f"{d.month}/{d.day}"
+            archive_history.append({
+                "label": label,
+                "count": daily_map.get(date_str, 0),
+                "date": date_str,
+            })
 
         # 최근 레포트
         latest = (
@@ -295,6 +317,8 @@ async def get_system_metrics(
             "total": total_reports,
             "today_inserts": today_reports,
             "by_firm_today": reports_by_firm,
+            "active_firms_today": active_firms_today,
+            "archive_history": archive_history,
         },
         "last_activity": {
             "last_save_time": last_report_time,
