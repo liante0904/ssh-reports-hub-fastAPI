@@ -8,16 +8,18 @@ import logging
 import os
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 
 import psutil
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from ..database import get_keywords_db, get_reports_db
 from ..deepseek_manager import DeepSeekConfig, DeepSeekManager
-from ..dependencies import get_user_from_token
+from ..dependencies import get_settings_dep, get_user_from_token
 from ..models import SecReport, User
+from ..settings import Settings
 
 logger = logging.getLogger("app.admin")
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -300,3 +302,142 @@ async def get_system_metrics(
             "last_firm": last_report_firm,
         },
     }
+
+
+# ──────────────────────────────────────────────
+#  로그 브라우저 (/admin/logs, /admin/logs/view)
+# ──────────────────────────────────────────────
+
+_LOG_DESCRIPTIONS: dict[str, str] = {
+    "fix_ls_db": "LS DB Fix 로그",
+    "fix_dbfi_urls": "DB Fi URL Fix 로그",
+    "scheduler": "스케줄러 실행 로그",
+    "scraper_background": "스크래퍼 백그라운드 로그",
+    "output": "스크래퍼 출력 로그",
+    "ls_fix_background": "LS Fix 백그라운드 로그",
+}
+
+
+def _resolve_log_path(sub_path: str | None, log_dir: Path) -> Path:
+    """로그 디렉토리 내 경로를 안전하게 resolve (path traversal 방지)."""
+    if sub_path:
+        requested = (log_dir / sub_path).resolve()
+        if not str(requested).startswith(str(log_dir) + "/") and str(requested) != str(log_dir):
+            raise HTTPException(status_code=403, detail="Access denied: path traversal detected")
+        return requested
+    return log_dir
+
+
+def _format_size(size_bytes: int) -> str:
+    if size_bytes < 1024:
+        return f"{size_bytes} B"
+    elif size_bytes < 1024 ** 2:
+        return f"{size_bytes / 1024:.1f} KB"
+    elif size_bytes < 1024 ** 3:
+        return f"{size_bytes / (1024 ** 2):.1f} MB"
+    return f"{size_bytes / (1024 ** 3):.2f} GB"
+
+
+def _format_mtime(mtime: float) -> str:
+    return datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M")
+
+
+def _get_description(name: str) -> str | None:
+    for pattern, desc in _LOG_DESCRIPTIONS.items():
+        if pattern in name:
+            return desc
+    return None
+
+
+def _is_archived(name: str) -> bool:
+    return any(name.endswith(suffix) for suffix in (".gz", ".zip", ".bz2", ".tar", ".xz"))
+
+
+@router.get("/logs")
+async def list_log_files(
+    path: str | None = Query(None, description="서브 디렉토리 경로"),
+    current_user: User = Depends(require_admin),
+    settings: Settings = Depends(get_settings_dep),
+):
+    target_dir = _resolve_log_path(path, Path(settings.admin_log_dir))
+
+    if not target_dir.exists():
+        raise HTTPException(status_code=404, detail="Directory not found")
+    if not target_dir.is_dir():
+        raise HTTPException(status_code=400, detail="Path is not a directory")
+
+    log_dir = Path(settings.admin_log_dir).resolve()
+    entries: list[dict] = []
+    try:
+        for child in sorted(target_dir.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower())):
+            if child.name.startswith("."):
+                continue
+            if child.is_dir():
+                entries.append({
+                    "type": "directory",
+                    "name": child.name,
+                    "full_path": str(child.relative_to(log_dir)),
+                    "description": "디렉토리",
+                    "modified": _format_mtime(child.stat().st_mtime),
+                })
+            elif child.is_file():
+                stat = child.stat()
+                entries.append({
+                    "type": "file",
+                    "name": child.name,
+                    "full_path": str(child.relative_to(log_dir)),
+                    "size": _format_size(stat.st_size),
+                    "modified": _format_mtime(stat.st_mtime),
+                    "description": _get_description(child.name),
+                    "archived": _is_archived(child.name),
+                })
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list directory: {e}")
+
+    current_path = str(target_dir.relative_to(log_dir)) if target_dir != log_dir else None
+    return {"entries": entries, "current_path": current_path}
+
+
+@router.get("/logs/view")
+async def view_log_file(
+    file: str = Query(..., description="읽을 로그 파일 경로 (admin_log_dir 기준 상대 경로)"),
+    lines: int = Query(500, ge=10, le=10000, description="읽을 줄 수"),
+    tail: bool = Query(True, description="tail 모드 (끝에서부터 읽기)"),
+    current_user: User = Depends(require_admin),
+    settings: Settings = Depends(get_settings_dep),
+):
+    target_file = _resolve_log_path(file, Path(settings.admin_log_dir))
+
+    if not target_file.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    if not target_file.is_file():
+        raise HTTPException(status_code=400, detail="Path is not a file")
+
+    MAX_FILE_SIZE = 100 * 1024 * 1024
+    file_size = target_file.stat().st_size
+    if file_size > MAX_FILE_SIZE:
+        raise HTTPException(status_code=413, detail=f"File too large ({_format_size(file_size)}). Maximum allowed: 100 MB")
+
+    try:
+        with open(target_file, "r", encoding="utf-8", errors="replace") as f:
+            if tail:
+                all_lines = f.readlines()
+                content_lines = all_lines[-lines:] if len(all_lines) > lines else all_lines
+            else:
+                content_lines = []
+                for i, line in enumerate(f):
+                    if i >= lines:
+                        break
+                    content_lines.append(line)
+
+        content = "".join(content_lines)
+        return {
+            "file": file,
+            "content": content,
+            "lines_returned": len(content_lines),
+            "tail": tail,
+        }
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="File is not a readable text file")
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read file: {e}")
