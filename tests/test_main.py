@@ -210,7 +210,7 @@ async def test_ords_search_board_filter(client):
 @pytest.mark.anyio
 async def test_pub_api_search_board_filter(client):
     """공용 API에서 회사와 게시판 필터가 함께 동작하는지 확인"""
-    response = await client.get("/pub/api/search?company=20&board=1&limit=10")
+    response = await client.get("/external/api/search?company=20&board=1&limit=10")
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data, dict)

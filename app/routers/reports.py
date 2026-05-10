@@ -1,7 +1,7 @@
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_reports_db
 from ..models import SecReport
@@ -37,4 +37,4 @@ async def get_reports(
             SecReport.gemini_summary != "",
             SecReport.gemini_summary != " ",
         )
-    return query.order_by(SecReport.reg_dt.desc(), SecReport.report_id.desc()).offset(offset).limit(limit).all()
+    return query.options(joinedload(SecReport.pdf_archive)).order_by(SecReport.reg_dt.desc(), SecReport.report_id.desc()).offset(offset).limit(limit).all()

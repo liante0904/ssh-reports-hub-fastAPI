@@ -2,14 +2,14 @@ from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import and_, or_, func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_reports_db
 from ..models import SecReport, SecFirmInfo, SecBoardInfo
 from ..schemas import CompanyResponse, BoardResponse
 
 # 새로운 주소 체계를 위한 라우터 (레거시 ords_compat부와 로직 동일)
-router = APIRouter(prefix="/pub/api", tags=["public-api"])
+router = APIRouter(prefix="/external/api", tags=["external-api"])
 
 @router.get("/companies", response_model=list[CompanyResponse], summary="증권사 정보 목록 조회 (리포트 존재 기준)")
 async def get_companies(db: Session = Depends(get_reports_db)):
@@ -105,7 +105,8 @@ INDUSTRY_REPORT_BOARD_FILTERS = (
 
 
 def _report_to_ords_item(report: SecReport, is_direct: bool = None) -> dict:
-    return {
+    archive = report.pdf_archive
+    item = {
         "report_id": report.report_id,
         "sec_firm_order": report.sec_firm_order,
         "article_board_order": report.article_board_order,
@@ -128,6 +129,26 @@ def _report_to_ords_item(report: SecReport, is_direct: bool = None) -> dict:
         "summary_time": report.summary_time,
         "summary_model": report.summary_model,
     }
+    # PDF 아카이브 컬럼 추가
+    if archive:
+        item["pdf_archive"] = {
+            "file_path": archive.file_path,
+            "file_size": archive.file_size,
+            "page_count": archive.page_count,
+            "archive_status": archive.archive_status,
+            "file_name": archive.file_name,
+            "has_text": archive.has_text,
+            "is_encrypted": archive.is_encrypted,
+            "storage_backend": archive.storage_backend,
+            "storage_key": archive.storage_key,
+            "author": archive.author,
+            "created_at": archive.created_at.isoformat() if archive.created_at else None,
+            "updated_at": archive.updated_at.isoformat() if archive.updated_at else None,
+            "last_accessed_at": archive.last_accessed_at.isoformat() if archive.last_accessed_at else None,
+        }
+    else:
+        item["pdf_archive"] = None
+    return item
 
 
 def _ords_collection_response(
@@ -220,6 +241,7 @@ async def get_industry_reports(
     if last_report_id is not None:
         query = query.filter(SecReport.report_id < last_report_id)
     query = _apply_legacy_search_filters(query, writer, title, mkt_tp, company, board)
+    query = query.options(joinedload(SecReport.pdf_archive))
 
     rows, has_more = _paginate_ords_query(
         query.order_by(SecReport.report_id.desc()),
@@ -253,6 +275,7 @@ async def search_reports(
     if report_id is not None:
         query = query.filter(SecReport.report_id == report_id)
     query = _apply_legacy_search_filters(query, writer, title, mkt_tp, company, board)
+    query = query.options(joinedload(SecReport.pdf_archive))
 
     # AI 요약이 있는 리포트만 필터링
     if has_summary:

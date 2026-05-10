@@ -6,7 +6,7 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_keywords_db, get_reports_db
 from ..dependencies import get_user_from_token
@@ -39,6 +39,7 @@ async def get_favorites(
     fav_report_ids = [f.report_id for f in favs]
     existing_reports = (
         reports_db.query(SecReport)
+        .options(joinedload(SecReport.pdf_archive))
         .filter(SecReport.report_id.in_(fav_report_ids))
         .all()
     )
@@ -52,6 +53,26 @@ async def get_favorites(
         report = report_map.get(fav.report_id)
         if report is None:
             continue  # tbl_sec_reports에 존재하지 않는 report_id는 제외
+
+        archive = report.pdf_archive
+        pdf_archive_data = None
+        if archive:
+            pdf_archive_data = {
+                "file_path": archive.file_path,
+                "file_size": archive.file_size,
+                "page_count": archive.page_count,
+                "archive_status": archive.archive_status,
+                "file_name": archive.file_name,
+                "has_text": archive.has_text,
+                "is_encrypted": archive.is_encrypted,
+                "storage_backend": archive.storage_backend,
+                "storage_key": archive.storage_key,
+                "author": archive.author,
+                "created_at": archive.created_at.isoformat() if archive.created_at else None,
+                "updated_at": archive.updated_at.isoformat() if archive.updated_at else None,
+                "last_accessed_at": archive.last_accessed_at.isoformat() if archive.last_accessed_at else None,
+            }
+
         items.append({
             "report_id": report.report_id,
             "sec_firm_order": report.sec_firm_order,
@@ -72,6 +93,7 @@ async def get_favorites(
             "summary_time": report.summary_time,
             "summary_model": report.summary_model,
             "favorite_created_at": fav.created_at.isoformat() if fav.created_at else None,
+            "pdf_archive": pdf_archive_data,
         })
 
     return {

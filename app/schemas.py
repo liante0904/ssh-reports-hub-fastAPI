@@ -3,6 +3,37 @@ import re
 from typing import Optional, List
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+class PdfArchiveResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    report_id: int
+    file_path: Optional[str] = None
+    file_size: Optional[int] = None
+    page_count: Optional[int] = None
+    pdf_url: Optional[str] = None
+    download_url: Optional[str] = None
+    telegram_url: Optional[str] = None
+    key: Optional[str] = None
+    archive_status: Optional[str] = None
+    file_name: Optional[str] = None
+    download_status_yn: Optional[str] = None
+    sync_status: Optional[int] = None
+    retry_count: Optional[int] = None
+    firm_nm: Optional[str] = None
+    title: Optional[str] = None
+    reg_dt: Optional[str] = None
+    pdf_sync_status: Optional[int] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    pdf_hash: Optional[bytes] = None
+    author: Optional[str] = None
+    has_text: Optional[bool] = None
+    is_encrypted: Optional[bool] = None
+    storage_backend: Optional[str] = None
+    storage_key: Optional[str] = None
+    last_accessed_at: Optional[datetime] = None
+
+
 class SecReportResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -15,35 +46,8 @@ class SecReportResponse(BaseModel):
     pdf_url: Optional[str] = None
     writer: Optional[str] = None
     gemini_summary: Optional[str] = None
+    pdf_archive: Optional[PdfArchiveResponse] = None
 
-
-class FnGuideReportSummaryResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    summary_id: int
-    source_page_url: str
-    report_date: str
-    company_name: str
-    company_code: Optional[str] = None
-    report_title: str
-    summary_text: Optional[str] = None
-    opinion: Optional[str] = None
-    target_price: Optional[str] = None
-    prev_close: Optional[str] = None
-    provider: Optional[str] = None
-    author: Optional[str] = None
-    article_url: Optional[str] = None
-    pdf_url: Optional[str] = None
-    report_key: str
-    item_rank: Optional[int] = None
-    sync_status: Optional[int] = None
-    created_at: datetime
-    updated_at: datetime
-
-
-class FnGuideReportDateResponse(BaseModel):
-    report_date: str
-    report_count: int
 
 class CompanyResponse(BaseModel):
     name: str

@@ -22,10 +22,9 @@ from .routers import (
     consensus,
     disclosure,
     favorites,
-    fnguide_reports,
     notes,
     ords_compat,
-    pub_api,
+    external_api,
     reports,
     screening,
     sentiment,
@@ -224,8 +223,7 @@ async def update_keyword(
 
 app.include_router(admin.router)
 app.include_router(reports.router)
-app.include_router(pub_api.router)
-app.include_router(fnguide_reports.router)
+app.include_router(external_api.router)
 app.include_router(ords_compat.router)
 app.include_router(consensus.router)
 app.include_router(notes.router)
