@@ -1,5 +1,9 @@
 # Agent Notes
 
+> **[IMPORTANT] 인프라 및 속도 가이드**
+> - 이 환경은 **초고속 내부 전용망**입니다. 모든 네트워크 응답은 5초 이내여야 합니다.
+> - 작업 시 10초 이상 지체하지 마십시오. 서버 이슈 시 즉시 프로세스를 죽이고 다시 띄우는 것이 가장 빠릅니다.
+
 This is a small FastAPI service for Telegram-authenticated research report lookup and keyword alerts.
 
 ## Current Structure

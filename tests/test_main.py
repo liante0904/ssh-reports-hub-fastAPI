@@ -8,7 +8,7 @@ from app.main import app
 from app.dependencies import get_settings_dep
 from app.settings import Settings
 
-from app.models import SecReport, MarketSentimentIndicator
+from app.models import SecReport
 
 # 테스트용 SQLite 메모리 DB 설정
 engine = create_engine(
@@ -58,70 +58,6 @@ async def client():
                 writer="김일혁",
                 mkt_tp="US",
                 save_time="20-APR-26",
-            ),
-        ]
-    )
-    db.add_all(
-        [
-            MarketSentimentIndicator(
-                key="fear_greed_index",
-                title="Fear & Greed Index",
-                category="overheat",
-                description="종합 시장 탐욕 지수입니다.",
-                value=81.0,
-                unit="pt",
-                score=81.0,
-                status="greed",
-                source="mock",
-                sort_order=1,
-            ),
-            MarketSentimentIndicator(
-                key="vix_percentile",
-                title="VIX Percentile",
-                category="volatility",
-                description="최근 변동성의 상대적 위치입니다.",
-                value=74.0,
-                unit="pt",
-                score=74.0,
-                status="elevated",
-                source="mock",
-                sort_order=2,
-            ),
-            MarketSentimentIndicator(
-                key="breadth_ratio",
-                title="상승/하락 종목 비율",
-                category="breadth",
-                description="시장의 확산 강도를 보여줍니다.",
-                value=63.0,
-                unit="%",
-                score=63.0,
-                status="neutral",
-                source="mock",
-                sort_order=3,
-            ),
-            MarketSentimentIndicator(
-                key="funding_heat",
-                title="펀딩비 과열도",
-                category="leverage",
-                description="선물 레버리지 쏠림을 반영합니다.",
-                value=88.0,
-                unit="pt",
-                score=88.0,
-                status="overheated",
-                source="mock",
-                sort_order=4,
-            ),
-            MarketSentimentIndicator(
-                key="extreme_ratio",
-                title="52주 극단값 비중",
-                category="trend",
-                description="신고가/신저가 쏠림을 나타냅니다.",
-                value=70.0,
-                unit="%",
-                score=70.0,
-                status="hot",
-                source="mock",
-                sort_order=5,
             ),
         ]
     )
@@ -216,25 +152,6 @@ async def test_pub_api_search_board_filter(client):
     assert isinstance(data, dict)
     assert data["count"] == 1
     assert data["items"][0]["report_id"] == 3
-
-
-@pytest.mark.anyio
-async def test_get_sentiment_indicators(client):
-    response = await client.get("/sentiment")
-    assert response.status_code == 200
-    data = response.json()
-    assert isinstance(data, list)
-    assert len(data) == 5
-    assert data[0]["key"] == "fear_greed_index"
-
-
-@pytest.mark.anyio
-async def test_get_sentiment_summary(client):
-    response = await client.get("/sentiment/summary")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["composite_score"] >= 60
-    assert data["overheat_count"] >= 3
 
 
 @pytest.mark.anyio

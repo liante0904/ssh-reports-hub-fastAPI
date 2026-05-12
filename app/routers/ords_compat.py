@@ -1,7 +1,7 @@
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, not_
 from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_reports_db
@@ -9,21 +9,31 @@ from ..models import SecReport
 
 router = APIRouter(prefix="/ords/admin/data_main_daily_send", tags=["ords-compat"])
 
+"""
+[산업분석 필터 관리 가이드]
+INDUSTRY_REPORT_BOARD_FILTERS는 산업분석 리포트만 추출하기 위한 증권사별 보드 매핑입니다.
+- 하나증권(3): 1(경제) 제외, 6(산업), 15(글로벌산업) 적용 (2026.05.12 수정)
+- DB증권(19): 기업/산업 합본 보드이므로 제목에서 종목코드 패턴 (숫자 5~6자리) 제외 필터 필수 적용
+- 신규 추가: SK(26), 유안타(27), 흥국(28) (2026.05.12)
+"""
 INDUSTRY_REPORT_BOARD_FILTERS = (
-    (0, (2,)),
-    (1, (0,)),
-    (3, (1,)),
-    (5, (1,)),
-    (6, (1,)),
-    (10, (1,)),
-    (12, (2,)),
-    (14, (8, 9, 10, 11, 12, 13)),
-    (18, (1,)),
-    (20, (1,)),
-    (22, (1,)),
-    (23, (1,)),
-    (24, (1,)),
-    (25, (2,)),
+    (0, (2,)),                     # LS증권 산업분석
+    (1, (0,)),                     # 신한증권 산업분석
+    (3, (6, 15)),                  # 하나증권 산업분석 + 글로벌 산업분석
+    (5, (1,)),                     # 삼성증권 산업분석
+    (6, (1,)),                     # 상상인증권 산업리포트
+    (10, (1,)),                    # 키움증권 산업분석
+    (14, (8, 9, 10, 11, 12, 13)),  # 다올투자증권 산업분석
+    (18, (1,)),                    # IM증권 산업분석(국내)
+    (19, (0,)),                    # DB증권 기업/산업분석(국내) - 종목코드 필터 필요
+    (20, (1,)),                    # 메리츠증권 산업분석
+    (22, (1,)),                    # 한양증권 산업 및 이슈 분석
+    (23, (1,)),                    # BNK투자증권 산업분석
+    (24, (1,)),                    # 교보증권 산업분석
+    (25, (2,)),                    # IBK투자증권 산업분석
+    (26, (6, 8)),                  # SK증권 산업분석
+    (27, (1,)),                    # 유안타증권 산업분석
+    (28, (0,)),                    # 흥국증권 산업/기업분석
 )
 
 
@@ -134,13 +144,19 @@ async def get_ords_industry_reports(
     offset: Annotated[int, Query(ge=0)] = 0,
     db: Session = Depends(get_reports_db),
 ):
-    board_filters = [
-        and_(
+    board_filters = []
+    for firm_order, board_orders in INDUSTRY_REPORT_BOARD_FILTERS:
+        f = and_(
             SecReport.sec_firm_order == firm_order,
             SecReport.article_board_order.in_(board_orders),
         )
-        for firm_order, board_orders in INDUSTRY_REPORT_BOARD_FILTERS
-    ]
+        if firm_order == 19:
+            # DB증권: 종목코드(숫자 5~6자리)가 포함된 제목은 기업분석이므로 제외 (산업분석만 포함)
+            # !~ 연산자는 PostgreSQL 전용이므로 dialect를 체크하여 적용
+            if db.get_bind().dialect.name == "postgresql":
+                f = and_(f, SecReport.article_title.op("!~")(r"\([0-9]{5,6}\)"))
+        board_filters.append(f)
+
     query = db.query(SecReport).filter(
         or_(*board_filters),
         SecReport.main_ch_send_yn == "Y",

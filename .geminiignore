@@ -17,3 +17,5 @@ build/
 *.log
 logs/
 uv.lock
+test_db_simple.py
+server.log
