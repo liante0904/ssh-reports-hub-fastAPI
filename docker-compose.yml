@@ -1,10 +1,11 @@
 services:
   fastapi:
+    image: ghcr.io/liante0904/ssh-reports-hub-fastapi:latest
     build: .
     container_name: ssh-reports-hub-fastapi-prod
     user: "1001:1001"
     ports:
-      - "8002:8000"
+      - "8004:8000"
     volumes:
       - .:/app
       - /home/ubuntu/sqlite3:/data
