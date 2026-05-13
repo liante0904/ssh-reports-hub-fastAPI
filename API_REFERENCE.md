@@ -51,22 +51,9 @@
 
 > `/api/notes` prefix로도 동일한 엔드포인트 제공 (`include_in_schema=False`)
 
-## ORDS Compat (Legacy)
-
-ORDS 호환 응답 envelope: `{ items, hasMore, limit, offset, count, links }`
-
-| Method | Endpoint | 설명 | 인증 | 테스트 |
-|--------|----------|------|------|--------|
-| `GET` | `/ords/admin/data_main_daily_send/industry` | 산업별 리포트 (main_ch_send_yn=Y) | None | `test_ords_compat.py`, `test_ords_external_api_parity.py` |
-| `GET` | `/ords/admin/data_main_daily_send/search` | 통합 검색 | None | `test_ords_compat.py`, `test_ords_external_api_parity.py` |
-
-**Industry params**: `writer`, `title`, `mkt_tp` (`domestic`/`global`), `company`, `board`, `last_report_id`, `limit` (≤100), `offset`
-
-**Search params**: `report_id`, `writer`, `title`, `mkt_tp`, `has_summary` (`true`/`false`), `company`, `board`, `limit` (≤100), `offset`
-
 ## External API (Public)
 
-ORDS 호환 envelope. `/ords/*` 와 1:1 로직 패리티.
+ORDS 호환 응답 envelope: `{ items, hasMore, limit, offset, count, links }`
 
 | Method | Endpoint | 설명 | 인증 | 테스트 |
 |--------|----------|------|------|--------|
@@ -140,9 +127,7 @@ ORDS 호환 envelope. `/ords/*` 와 1:1 로직 패리티.
 
 | 테스트 파일 | 커버리지 |
 |-------------|----------|
-| `test_main.py` | `/health`, `/reports`, `/ords/...`, `/external/api/...`, `/auth/telegram` |
+| `test_main.py` | `/health`, `/reports`, `/external/api/...`, `/auth/telegram` |
 | `test_api_mocked.py` | `/health`, `/reports`, auth 순수 로직 |
-| `test_ords_compat.py` | `/ords/admin/data_main_daily_send/industry`, `/search` |
-| `test_ords_external_api_parity.py` | `/ords/*` ↔ `/external/api/*` 1:1 패리티 |
 | `test_consensus_revision.py` | `/consensus/revision/1d`, `/consensus/revision/1d/summary` |
 | `test_admin_metrics.py` | `/admin/metrics` |

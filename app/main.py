@@ -30,7 +30,6 @@ from .routers import (
     disclosure,
     favorites,
     notes,
-    ords_compat,
     external_api,
     reports,
     screening,
@@ -231,7 +230,6 @@ async def update_keyword(
 app.include_router(admin.router)
 app.include_router(reports.router)
 app.include_router(external_api.router)
-app.include_router(ords_compat.router)
 app.include_router(consensus.router)
 app.include_router(notes.router)
 app.include_router(notes.api_router)
