@@ -1,8 +1,9 @@
-from fastapi import Depends, HTTPException
+from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
 from .database import get_keywords_db
+from .exceptions import AuthenticationException
 from .models import User
 from .security import decode_access_token
 from .settings import get_settings, Settings
@@ -21,5 +22,5 @@ async def get_user_from_token(
     user_id = payload["sub"]
     user = db.query(User).filter(User.id == int(user_id)).first()
     if user is None:
-        raise HTTPException(status_code=401, detail="User Not Found")
+        raise AuthenticationException("User Not Found")
     return user

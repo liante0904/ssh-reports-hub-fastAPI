@@ -16,11 +16,12 @@ from pathlib import Path
 from typing import Optional
 
 import openpyxl
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from ..database import get_reports_db
 from ..dependencies import get_user_from_token
+from ..exceptions import NotFoundException, ServiceUnavailableException, ValidationException
 from ..models import User
 from ..settings import get_settings
 
@@ -89,13 +90,13 @@ class ScreeningFileSource:
         """xlsx 파일을 읽어 시트별 JSON 데이터 반환"""
         fpath = os.path.join(base_dir, filename)
         if not os.path.isfile(fpath):
-            raise HTTPException(status_code=404, detail=f"File not found: {filename}")
+            raise NotFoundException(f"File not found: {filename}")
 
         try:
             wb = openpyxl.load_workbook(fpath, read_only=True, data_only=True)
         except Exception as e:
             logger.error("Failed to load xlsx %s: %s", filename, e)
-            raise HTTPException(status_code=500, detail="Failed to read file")
+            raise ServiceUnavailableException("Failed to read file")
 
         result = {
             "filename": filename,
@@ -196,7 +197,7 @@ async def get_screening_file(
     """
     # 파일명 검증
     if not FILENAME_PATTERN.match(filename):
-        raise HTTPException(status_code=400, detail="Invalid filename format")
+        raise ValidationException("Invalid filename format")
 
     base_dir = get_screening_dir()
     result = ScreeningFileSource.read_file(base_dir, filename)
@@ -205,7 +206,7 @@ async def get_screening_file(
     if sheet:
         filtered = [s for s in result["sheets"] if s["name"] == sheet]
         if not filtered:
-            raise HTTPException(status_code=404, detail=f"Sheet not found: {sheet}")
+            raise NotFoundException(f"Sheet not found: {sheet}")
         result["sheets"] = filtered
 
     # 행 제한
@@ -231,7 +232,7 @@ async def get_latest_screening(
     files = ScreeningFileSource.list_files(base_dir)
 
     if not files:
-        raise HTTPException(status_code=404, detail="No screening files found")
+        raise NotFoundException("No screening files found")
 
     latest = files[0]["filename"]
     result = ScreeningFileSource.read_file(base_dir, latest)
@@ -239,7 +240,7 @@ async def get_latest_screening(
     if sheet:
         filtered = [s for s in result["sheets"] if s["name"] == sheet]
         if not filtered:
-            raise HTTPException(status_code=404, detail=f"Sheet not found: {sheet}")
+            raise NotFoundException(f"Sheet not found: {sheet}")
         result["sheets"] = filtered
 
     if limit and limit > 0:

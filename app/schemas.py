@@ -25,7 +25,6 @@ class PdfArchiveResponse(BaseModel):
     pdf_sync_status: Optional[int] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-    pdf_hash: Optional[bytes] = None
     author: Optional[str] = None
     has_text: Optional[bool] = None
     is_encrypted: Optional[bool] = None
@@ -142,6 +141,45 @@ class ConsensusSummaryResponse(BaseModel):
     up_count: int
     down_count: int
     latest_date: datetime
+
+
+class RevisionMetricItem(BaseModel):
+    """개별 지표의 1D 변화"""
+    today: Optional[float] = None
+    yesterday: Optional[float] = None
+    change_pct: Optional[float] = None
+    direction: str = "flat"  # up / down / flat
+
+
+class Consensus1DRevisionResponse(BaseModel):
+    """1D 리비전 전용 응답 – 오늘 vs 어제 변화율 중심"""
+    code: str
+    name: str
+    date: datetime
+    target_period: str
+    sector: Optional[str] = None
+    current_price: Optional[float] = None
+    operating_profit: RevisionMetricItem
+    net_income: RevisionMetricItem
+    sales: RevisionMetricItem
+    eps: RevisionMetricItem
+    rev_1m: Optional[float] = None
+    rev_3m: Optional[float] = None
+    updated_at: Optional[datetime] = None
+
+
+class Consensus1DRevisionSummaryResponse(BaseModel):
+    """1D 리비전 요약 – 당일 전체 변화 집계"""
+    latest_date: datetime
+    previous_date: Optional[datetime] = None
+    total_stocks: int
+    up_count: int
+    down_count: int
+    flat_count: int
+    avg_op_revision: Optional[float] = None  # 평균 영업이익 변화율
+    avg_ni_revision: Optional[float] = None  # 평균 순이익 변화율
+    avg_sales_revision: Optional[float] = None  # 평균 매출 변화율
+    avg_eps_revision: Optional[float] = None  # 평균 EPS 변화율
 
 class InvestmentNoteBase(BaseModel):
     content: Optional[str] = ""

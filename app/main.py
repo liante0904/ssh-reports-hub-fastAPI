@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 에러 발생 시 지연 대기보다는 즉시 프로세스(fuser -k 8000/tcp)를 정리하고 재구동하십시오.
 """
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
 from slowapi import Limiter
@@ -22,6 +22,18 @@ from sqlalchemy.orm import Session
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from .database import Base, get_keywords_db, keywords_engine, reports_engine
+from .error_handlers import register_exception_handlers
+from .exceptions import (
+    AuthenticationException,
+    NotFoundException,
+    PermissionDeniedException,
+    ServiceUnavailableException,
+)
+from .logging_config import (
+    RequestIDMiddleware,
+    RequestLoggingMiddleware,
+    configure_structured_logging,
+)
 from .models import ReportKeyword, User
 from .routers import (
     admin,
@@ -80,6 +92,7 @@ def _ensure_investment_note_layout_columns(engine) -> None:
 
 
 configure_sensitive_log_filter()
+configure_structured_logging()
 
 app = FastAPI(
     title="SSH Private Hub API",
@@ -93,7 +106,13 @@ limiter = Limiter(key_func=get_remote_address, default_limits=[get_settings().ra
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+# 전역 예외 핸들러 등록 (커스텀 예외 → 일관된 JSON 응답)
+register_exception_handlers(app)
+
+# 미들웨어 (실행 순서: 아래에서 위로)
 app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(RequestIDMiddleware)
 app.add_middleware(SlowAPIMiddleware)
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 app.add_middleware(
@@ -120,24 +139,21 @@ async def auth_telegram(
 
     if not is_bypass and not is_whitelisted_user:
         if not settings.clean_telegram_bot_token:
-            raise HTTPException(status_code=503, detail="Telegram bot token is not configured")
+            raise ServiceUnavailableException("Telegram bot token is not configured")
 
         is_valid, reason = verify_telegram_data(user_data.model_dump(), settings)
         if not is_valid:
             logger.warning("Telegram auth rejected for user_id=%s: %s", user_data.id, reason)
             if reason == "Telegram signature mismatch":
-                raise HTTPException(
-                    status_code=401,
-                    detail=(
-                        "Telegram Auth Failed: Telegram signature mismatch. "
-                        "Check that the frontend VITE_TELEGRAM_BOT_USERNAME matches the bot "
-                        "whose token is configured as TELEGRAM_BOT_TOKEN."
-                    ),
+                raise AuthenticationException(
+                    "Telegram Auth Failed: Telegram signature mismatch. "
+                    "Check that the frontend VITE_TELEGRAM_BOT_USERNAME matches the bot "
+                    "whose token is configured as TELEGRAM_BOT_TOKEN.",
                 )
-            raise HTTPException(status_code=401, detail=f"Telegram Auth Failed: {reason}")
+            raise AuthenticationException(f"Telegram Auth Failed: {reason}")
 
     if allowed_ids and user_data.id not in allowed_ids:
-        raise HTTPException(status_code=403, detail="Telegram User Not Allowed")
+        raise PermissionDeniedException("Telegram User Not Allowed")
 
     db_user = db.query(User).filter(User.id == user_data.id).first()
     if not db_user:
@@ -218,7 +234,7 @@ async def update_keyword(
         ReportKeyword.user_id == current_user.id
     ).first()
     if not db_keyword:
-        raise HTTPException(status_code=404, detail="Not Found")
+        raise NotFoundException("Keyword Not Found")
     db_keyword.keyword = keyword_in.keyword
     db_keyword.is_active = keyword_in.is_active
     db_keyword.updated_at = int(time.time())

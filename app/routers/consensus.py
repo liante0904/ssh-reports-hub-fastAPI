@@ -7,7 +7,15 @@ from sqlalchemy.orm import Session, aliased
 
 from ..database import get_reports_db
 from ..models import ConsensusHistory
-from ..schemas import ConsensusResponse, ConsensusHistoryResponse, ConsensusSummaryResponse, ConsensusSectorResponse
+from ..schemas import (
+    ConsensusResponse,
+    ConsensusHistoryResponse,
+    ConsensusSummaryResponse,
+    ConsensusSectorResponse,
+    Consensus1DRevisionResponse,
+    Consensus1DRevisionSummaryResponse,
+    RevisionMetricItem,
+)
 
 router = APIRouter(prefix="/consensus", tags=["Consensus"])
 
@@ -254,3 +262,204 @@ async def get_screener(
         query = query.filter(ConsensusHistory.sector == sector)
         
     return query.order_by(ConsensusHistory.rev_1m.desc()).limit(limit).all()
+
+
+# ── 1D Revision helpers ──────────────────────────────────────────────
+
+def _calc_revision(today_val, yesterday_val) -> dict:
+    """두 값의 변화율과 방향을 계산한다."""
+    if today_val is None or yesterday_val is None or yesterday_val == 0:
+        return {"today": today_val, "yesterday": yesterday_val, "change_pct": 0.0, "direction": "flat"}
+
+    change_pct = round(((today_val - yesterday_val) / abs(yesterday_val)) * 100, 2)
+    if change_pct > 0:
+        direction = "up"
+    elif change_pct < 0:
+        direction = "down"
+    else:
+        direction = "flat"
+
+    return {"today": today_val, "yesterday": yesterday_val, "change_pct": change_pct, "direction": direction}
+
+
+def _build_revision_rows(db: Session):
+    """오늘 vs 이전일자 self-join 결과를 row dict 리스트로 반환."""
+    latest_date_sq = select(func.max(ConsensusHistory.date)).scalar_subquery()
+    previous_date_sq = select(func.max(ConsensusHistory.date)).where(ConsensusHistory.date < latest_date_sq).scalar_subquery()
+
+    latest = aliased(ConsensusHistory)
+    previous = aliased(ConsensusHistory)
+
+    query = (
+        db.query(
+            latest.code,
+            latest.name,
+            latest.date,
+            latest.target_period,
+            latest.sector,
+            latest.current_price,
+            latest.operating_profit,
+            previous.operating_profit,
+            latest.net_income,
+            previous.net_income,
+            latest.sales,
+            previous.sales,
+            latest.eps,
+            previous.eps,
+            latest.rev_1m,
+            latest.rev_3m,
+            latest.updated_at,
+        )
+        .select_from(latest)
+        .outerjoin(
+            previous,
+            and_(
+                latest.code == previous.code,
+                latest.target_period == previous.target_period,
+                previous.date == previous_date_sq,
+            ),
+        )
+        .filter(latest.date == latest_date_sq)
+    )
+
+    rows = query.all()
+    return rows
+
+
+# ── 1D Revision endpoints ───────────────────────────────────────────
+
+@router.get("/revision/1d", response_model=list[Consensus1DRevisionResponse])
+@router.get("/revision/1d/", response_model=list[Consensus1DRevisionResponse])
+async def get_1d_revision(
+    limit: Annotated[int, Query(ge=1, le=200)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    code: Annotated[Optional[str], Query(min_length=1, max_length=32)] = None,
+    sector: Annotated[Optional[str], Query(min_length=1, max_length=64)] = None,
+    target_period: Annotated[Optional[str], Query(min_length=1, max_length=16)] = None,
+    sort_by: Annotated[str, Query(pattern="^(op|ni|sales|eps|rev_1m|rev_3m)$")] = "op",
+    direction: Annotated[Optional[str], Query(pattern="^(up|down|all)$")] = "all",
+    db: Session = Depends(get_reports_db),
+):
+    """
+    **1D 리비전**: 오늘 들어온 컨센서스 데이터와 이전일자를 비교해 변화율을 조회한다.
+
+    - `sort_by`: 정렬 기준 (op / ni / sales / eps / rev_1m / rev_3m)
+    - `direction`: 변화 방향 필터 (up / down / all)
+    - `code`, `sector`, `target_period`: 선택적 필터
+    """
+    rows = _build_revision_rows(db)
+
+    results = []
+    for r in rows:
+        op = _calc_revision(r[6], r[7])   # operating_profit
+        ni = _calc_revision(r[8], r[9])   # net_income
+        sl = _calc_revision(r[10], r[11])  # sales
+        ep = _calc_revision(r[12], r[13])  # eps
+
+        # 방향 필터: 지정된 지표의 direction 으로 판단
+        sort_metric_map = {
+            "op": op["direction"],
+            "ni": ni["direction"],
+            "sales": sl["direction"],
+            "eps": ep["direction"],
+        }
+        item_direction = sort_metric_map.get(sort_by, op["direction"])
+
+        if direction and direction != "all" and item_direction != direction:
+            continue
+        if code and r[0] != code:
+            continue
+        if sector and r[4] != sector:
+            continue
+        if target_period and r[3] != target_period:
+            continue
+
+        results.append({
+            "code": r[0],
+            "name": r[1],
+            "date": r[2],
+            "target_period": r[3],
+            "sector": r[4],
+            "current_price": r[5],
+            "operating_profit": RevisionMetricItem(**op),
+            "net_income": RevisionMetricItem(**ni),
+            "sales": RevisionMetricItem(**sl),
+            "eps": RevisionMetricItem(**ep),
+            "rev_1m": r[14],
+            "rev_3m": r[15],
+            "updated_at": r[16],
+        })
+
+    # 정렬: 지정된 지표의 change_pct 절댓값 기준 내림차순
+    sort_key_map = {
+        "op": lambda x: abs(x["operating_profit"].change_pct or 0),
+        "ni": lambda x: abs(x["net_income"].change_pct or 0),
+        "sales": lambda x: abs(x["sales"].change_pct or 0),
+        "eps": lambda x: abs(x["eps"].change_pct or 0),
+        "rev_1m": lambda x: abs(x["rev_1m"] or 0),
+        "rev_3m": lambda x: abs(x["rev_3m"] or 0),
+    }
+    key_fn = sort_key_map.get(sort_by, sort_key_map["op"])
+    results.sort(key=key_fn, reverse=True)
+
+    return results[offset : offset + limit]
+
+
+@router.get("/revision/1d/summary", response_model=Consensus1DRevisionSummaryResponse)
+@router.get("/revision/1d/summary/", response_model=Consensus1DRevisionSummaryResponse)
+async def get_1d_revision_summary(db: Session = Depends(get_reports_db)):
+    """
+    **1D 리비전 요약**: 당일 전체 변화 건수 및 평균 변화율을 집계한다.
+    """
+    rows = _build_revision_rows(db)
+
+    if not rows:
+        return {
+            "latest_date": datetime.now(),
+            "previous_date": None,
+            "total_stocks": 0,
+            "up_count": 0,
+            "down_count": 0,
+            "flat_count": 0,
+            "avg_op_revision": None,
+            "avg_ni_revision": None,
+            "avg_sales_revision": None,
+            "avg_eps_revision": None,
+        }
+
+    op_changes, ni_changes, sales_changes, eps_changes = [], [], [], []
+    up = down = flat = 0
+
+    for r in rows:
+        op = _calc_revision(r[6], r[7])
+        ni = _calc_revision(r[8], r[9])
+
+        op_changes.append(op["change_pct"])
+        ni_changes.append(ni["change_pct"])
+        sales_changes.append(_calc_revision(r[10], r[11])["change_pct"])
+        eps_changes.append(_calc_revision(r[12], r[13])["change_pct"])
+
+        # 영업이익 변화 기준 up/down/flat 판정
+        if op["direction"] == "up":
+            up += 1
+        elif op["direction"] == "down":
+            down += 1
+        else:
+            flat += 1
+
+    def _avg(vals):
+        vals = [v for v in vals if v is not None]
+        return round(sum(vals) / len(vals), 2) if vals else None
+
+    return {
+        "latest_date": rows[0][2],
+        "previous_date": None,  # 추후 개별 쿼리로 채울 수도 있음
+        "total_stocks": len(rows),
+        "up_count": up,
+        "down_count": down,
+        "flat_count": flat,
+        "avg_op_revision": _avg(op_changes),
+        "avg_ni_revision": _avg(ni_changes),
+        "avg_sales_revision": _avg(sales_changes),
+        "avg_eps_revision": _avg(eps_changes),
+    }

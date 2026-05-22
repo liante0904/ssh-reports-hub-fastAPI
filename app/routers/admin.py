@@ -11,13 +11,20 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import psutil
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from ..database import get_keywords_db, get_reports_db
 from ..deepseek_manager import DeepSeekConfig, DeepSeekManager
 from ..dependencies import get_settings_dep, get_user_from_token
+from ..exceptions import (
+    FileTooLargeException,
+    NotFoundException,
+    PermissionDeniedException,
+    ValidationException,
+    ServiceUnavailableException,
+)
 from ..models import SecReport, User
 from ..settings import Settings
 
@@ -28,7 +35,7 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 def require_admin(current_user: User = Depends(get_user_from_token)) -> User:
     """관리자 권한을 확인하는 의존성"""
     if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Admin access required")
+        raise PermissionDeniedException("Admin access required")
     return current_user
 
 
@@ -51,12 +58,12 @@ async def get_summarize_command(
         .first()
     )
     if not report:
-        raise HTTPException(status_code=404, detail="Report not found")
+        raise NotFoundException("Report not found")
 
     # 요약 대상 PDF URL 결정
     pdf_url = report.pdf_url or report.telegram_url or report.download_url or ""
     if not pdf_url:
-        raise HTTPException(status_code=400, detail="No PDF URL available for this report")
+        raise ValidationException("No PDF URL available for this report")
 
     # DeepSeek 매니저 (dry-run 모드)
     config = DeepSeekConfig(dry_run=True)
@@ -101,7 +108,7 @@ async def trigger_summarize(
         .first()
     )
     if not report:
-        raise HTTPException(status_code=404, detail="Report not found")
+        raise NotFoundException("Report not found")
 
     # 이미 요약이 있는지 확인
     if report.gemini_summary and report.gemini_summary.strip():
@@ -115,7 +122,7 @@ async def trigger_summarize(
     # PDF URL 결정
     pdf_url = report.pdf_url or report.telegram_url or report.download_url or ""
     if not pdf_url:
-        raise HTTPException(status_code=400, detail="No PDF URL available for this report")
+        raise ValidationException("No PDF URL available for this report")
 
     # DeepSeek 요약 실행 (dry_run=False → PDF 다운로드 → 텍스트 추출 → DeepSeek API → DB 저장)
     config = DeepSeekConfig(dry_run=False)
@@ -347,7 +354,7 @@ def _resolve_log_path(sub_path: str | None, log_dir: Path) -> Path:
     if sub_path:
         requested = (log_dir / sub_path).resolve()
         if not str(requested).startswith(str(log_dir) + "/") and str(requested) != str(log_dir):
-            raise HTTPException(status_code=403, detail="Access denied: path traversal detected")
+            raise PermissionDeniedException("Access denied: path traversal detected")
         return requested
     return log_dir
 
@@ -386,9 +393,9 @@ async def list_log_files(
     target_dir = _resolve_log_path(path, Path(settings.admin_log_dir))
 
     if not target_dir.exists():
-        raise HTTPException(status_code=404, detail="Directory not found")
+        raise NotFoundException("Directory not found")
     if not target_dir.is_dir():
-        raise HTTPException(status_code=400, detail="Path is not a directory")
+        raise ValidationException("Path is not a directory")
 
     log_dir = Path(settings.admin_log_dir).resolve()
     entries: list[dict] = []
@@ -416,7 +423,7 @@ async def list_log_files(
                     "archived": _is_archived(child.name),
                 })
     except OSError as e:
-        raise HTTPException(status_code=500, detail=f"Failed to list directory: {e}")
+        raise ServiceUnavailableException(f"Failed to list directory: {e}")
 
     current_path = str(target_dir.relative_to(log_dir)) if target_dir != log_dir else None
     return {"entries": entries, "current_path": current_path}
@@ -433,14 +440,14 @@ async def view_log_file(
     target_file = _resolve_log_path(file, Path(settings.admin_log_dir))
 
     if not target_file.exists():
-        raise HTTPException(status_code=404, detail="File not found")
+        raise NotFoundException("File not found")
     if not target_file.is_file():
-        raise HTTPException(status_code=400, detail="Path is not a file")
+        raise ValidationException("Path is not a file")
 
     MAX_FILE_SIZE = 100 * 1024 * 1024
     file_size = target_file.stat().st_size
     if file_size > MAX_FILE_SIZE:
-        raise HTTPException(status_code=413, detail=f"File too large ({_format_size(file_size)}). Maximum allowed: 100 MB")
+        raise FileTooLargeException(f"File too large ({_format_size(file_size)}). Maximum allowed: 100 MB")
 
     try:
         with open(target_file, "r", encoding="utf-8", errors="replace") as f:
@@ -462,6 +469,6 @@ async def view_log_file(
             "tail": tail,
         }
     except UnicodeDecodeError:
-        raise HTTPException(status_code=400, detail="File is not a readable text file")
+        raise ValidationException("File is not a readable text file")
     except OSError as e:
-        raise HTTPException(status_code=500, detail=f"Failed to read file: {e}")
+        raise ServiceUnavailableException(f"Failed to read file: {e}")

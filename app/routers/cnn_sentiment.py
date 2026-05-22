@@ -4,10 +4,11 @@ import json
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from ..database import get_reports_db
+from ..exceptions import ExternalServiceException
 from ..models import MarketSentimentDailySnapshot, MarketSentimentIndicator, MarketSentimentSnapshot
 from ..schemas import (
     CNNFearGreedIndicatorResponse,
@@ -180,7 +181,7 @@ async def get_latest_cnn_fear_greed():
     try:
         snapshot = fetch_cnn_fear_greed_snapshot()
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Failed to fetch CNN Fear & Greed data: {exc}") from exc
+        raise ExternalServiceException(f"Failed to fetch CNN Fear & Greed data: {exc}") from exc
 
     return CNNFearGreedLatestResponse(
         score=snapshot["score"],
@@ -200,7 +201,7 @@ async def sync_cnn_fear_greed(db: Session = Depends(get_reports_db)):
     try:
         snapshot = fetch_cnn_fear_greed_snapshot()
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Failed to fetch CNN Fear & Greed data: {exc}") from exc
+        raise ExternalServiceException(f"Failed to fetch CNN Fear & Greed data: {exc}") from exc
 
     _upsert_live_indicator_rows(db, snapshot)
     row = _store_snapshot(db, snapshot)

@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from typing import List
 
 from ..database import get_keywords_db
 from ..dependencies import get_user_from_token
+from ..exceptions import NotFoundException
 from ..models import InvestmentNote, User
 from ..schemas import InvestmentNoteCreate, InvestmentNoteResponse, InvestmentNoteUpdate
 
@@ -30,7 +31,7 @@ def _update_note(note_id: int, note_update: InvestmentNoteUpdate, current_user: 
     ).first()
 
     if not db_note:
-        raise HTTPException(status_code=404, detail="Note Not Found")
+        raise NotFoundException("Note Not Found")
 
     update_data = note_update.model_dump(exclude_unset=True)
     for key, value in update_data.items():
@@ -48,7 +49,7 @@ def _delete_note(note_id: int, current_user: User, db: Session):
     ).first()
 
     if not db_note:
-        raise HTTPException(status_code=404, detail="Note Not Found")
+        raise NotFoundException("Note Not Found")
 
     db.delete(db_note)
     db.commit()

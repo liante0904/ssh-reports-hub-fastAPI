@@ -7,10 +7,11 @@ from datetime import datetime, timedelta, timezone
 
 UTC = timezone.utc
 
-from fastapi import HTTPException, Request, status
+from fastapi import Request
 from jose import JWTError, jwt
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from .exceptions import AuthenticationException, ServiceUnavailableException
 from .settings import Settings
 
 SENSITIVE_VALUE_RE = re.compile(
@@ -54,10 +55,7 @@ def configure_sensitive_log_filter() -> None:
 
 def require_jwt_secret(settings: Settings) -> None:
     if not settings.jwt_is_configured:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="JWT secret is not configured",
-        )
+        raise ServiceUnavailableException("JWT secret is not configured")
 
 
 def create_access_token(subject: int, settings: Settings) -> str:
@@ -78,18 +76,12 @@ def decode_access_token(token: str, settings: Settings) -> dict:
     try:
         payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
     except JWTError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
+        raise AuthenticationException(
+            "Invalid or expired token",
         ) from exc
 
     if payload.get("type") != "access" or not payload.get("sub"):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise AuthenticationException("Invalid token")
     return payload
 
 

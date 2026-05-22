@@ -14,9 +14,9 @@
 - **대상:** `app/schemas.py`
 - **내용:** 좌표 범위 및 HEX 색상 코드 검증(`field_validator`) 추가 완료.
 
-## 4. 에러 핸들링 및 로깅 표준화 (난이도: 중)
-- **대상:** `app/routers/`, `app/main.py`
-- **내용:** 커스텀 Exception 클래스를 도입하고 전역 Exception Handler를 등록하여 에러 응답 형식을 통일합니다.
+## 4. 에러 핸들링 및 로깅 표준화 (완료)
+- **대상:** `app/exceptions.py` (신규), `app/error_handlers.py` (신규), `app/logging_config.py` (신규), `app/routers/`, `app/main.py`, `app/security.py`, `app/dependencies.py`
+- **내용:** 커스텀 Exception 클래스(`AppBaseException`, `NotFoundException`, `AuthenticationException`, `PermissionDeniedException`, `ValidationException`, `ServiceUnavailableException`, `ExternalServiceException`, `FileTooLargeException`)를 도입하고 전역 Exception Handler를 등록하여 에러 응답 형식을 통일 완료. RequestID 및 RequestLogging 미들웨어 추가, 구조화 로깅 설정 도입.
 
 ## 5. 라이브러리(ssh-library) 모델 통합 (난이도: 상)
 - **대상:** `ssh-library`, `app/models.py`

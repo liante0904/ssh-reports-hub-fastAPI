@@ -8,7 +8,7 @@ from ..database import get_reports_db
 from ..models import SecReport, SecFirmInfo, SecBoardInfo
 from ..schemas import CompanyResponse, BoardResponse
 
-# 새로운 주소 체계를 위한 라우터 (레거시 ords_compat부와 로직 동일)
+# External API 라우터 — 프론트엔드가 직접 호출하는 공개 API
 router = APIRouter(prefix="/external/api", tags=["external-api"])
 
 @router.get("/companies", response_model=list[CompanyResponse], summary="증권사 정보 목록 조회 (리포트 존재 기준)")
@@ -107,7 +107,7 @@ INDUSTRY_REPORT_BOARD_FILTERS = (
 )
 
 
-def _report_to_ords_item(report: SecReport, is_direct: bool = None) -> dict:
+def _report_to_api_item(report: SecReport, is_direct: bool = None) -> dict:
     archive = report.pdf_archive
     item = {
         "report_id": report.report_id,
@@ -154,7 +154,7 @@ def _report_to_ords_item(report: SecReport, is_direct: bool = None) -> dict:
     return item
 
 
-def _ords_collection_response(
+def _collection_response(
     request: Request,
     items: list,
     limit: int,
@@ -166,9 +166,9 @@ def _ords_collection_response(
         try:
             report, is_direct_link = item
         except (TypeError, ValueError):
-            processed_items.append(_report_to_ords_item(item))
+            processed_items.append(_report_to_api_item(item))
         else:
-            processed_items.append(_report_to_ords_item(report, is_direct_link == 'Y'))
+            processed_items.append(_report_to_api_item(report, is_direct_link == 'Y'))
 
     return {
         "items": processed_items,
@@ -183,12 +183,12 @@ def _ords_collection_response(
     }
 
 
-def _paginate_ords_query(query, limit: int, offset: int) -> tuple[list, bool]:
+def _paginate_query(query, limit: int, offset: int) -> tuple[list, bool]:
     rows = query.offset(offset).limit(limit + 1).all()
     return rows[:limit], len(rows) > limit
 
 
-def _apply_legacy_search_filters(
+def _apply_search_filters(
     query,
     writer: Optional[str],
     title: Optional[str],
@@ -226,7 +226,7 @@ async def get_industry_reports(
     db: Session = Depends(get_reports_db),
 ):
     """
-    산업별 필터가 적용된 리포트 목록을 조회합니다. (구 ORDS industry 경로 마이그레이션용)
+    산업별 필터가 적용된 리포트 목록을 조회합니다.
     """
     board_filters = []
     for firm_order, board_orders in INDUSTRY_REPORT_BOARD_FILTERS:
@@ -248,15 +248,15 @@ async def get_industry_reports(
     )
     if last_report_id is not None:
         query = query.filter(SecReport.report_id < last_report_id)
-    query = _apply_legacy_search_filters(query, writer, title, mkt_tp, company, board)
+    query = _apply_search_filters(query, writer, title, mkt_tp, company, board)
     query = query.options(joinedload(SecReport.pdf_archive))
 
-    rows, has_more = _paginate_ords_query(
+    rows, has_more = _paginate_query(
         query.order_by(SecReport.report_id.desc()),
         limit,
         offset,
     )
-    return _ords_collection_response(request, rows, limit, offset, has_more)
+    return _collection_response(request, rows, limit, offset, has_more)
 
 
 @router.get("/search", summary="리포트 통합 검색 (Public API)")
@@ -275,14 +275,14 @@ async def search_reports(
     db: Session = Depends(get_reports_db),
 ):
     """
-    다양한 필터를 사용하여 리포트를 검색합니다. (구 ORDS search 경로 마이그레이션용)
+    다양한 필터를 사용하여 리포트를 검색합니다.
     """
     query = db.query(SecReport, SecFirmInfo.is_direct_link).outerjoin(
         SecFirmInfo, SecReport.sec_firm_order == SecFirmInfo.sec_firm_order
     )
     if report_id is not None:
         query = query.filter(SecReport.report_id == report_id)
-    query = _apply_legacy_search_filters(query, writer, title, mkt_tp, company, board)
+    query = _apply_search_filters(query, writer, title, mkt_tp, company, board)
     query = query.options(joinedload(SecReport.pdf_archive))
 
     # AI 요약이 있는 리포트만 필터링
@@ -304,5 +304,5 @@ async def search_reports(
             SecReport.article_board_order,
         )
 
-    rows, has_more = _paginate_ords_query(query, limit, offset)
-    return _ords_collection_response(request, rows, limit, offset, has_more)
+    rows, has_more = _paginate_query(query, limit, offset)
+    return _collection_response(request, rows, limit, offset, has_more)
