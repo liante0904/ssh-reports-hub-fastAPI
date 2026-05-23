@@ -1,4 +1,4 @@
-SECRETS := python3 $(HOME)/secrets/generate_env.py private-hub
+SECRETS := python3 $(HOME)/secrets/generate_env.py $(CURDIR)
 COMPOSE  := docker compose
 UV_CACHE_DIR ?= /tmp/uv-cache
 UV := UV_CACHE_DIR=$(UV_CACHE_DIR) uv
