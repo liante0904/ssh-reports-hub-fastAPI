@@ -297,10 +297,24 @@ async def search_reports(
             SecReport.gemini_summary != " ",
         )
 
-    # 시장 전망 리포트 필터링 (제목에 '전망' 포함)
+    # 시장 전망 리포트 필터링
+    # 포함: 하반기/상반기/연간/전망포럼 등 시장 맥락 + '전망'
+    # 제외: 개별 종목코드(숫자5~6자리), 목표주가 언급
     if outlook:
         query = query.filter(
+            # 기본: 제목에 "전망" 포함
             SecReport.article_title.ilike("%전망%"),
+            # 시장 맥락 키워드 필수 (하반기, 상반기, 연간, 전망포럼, N년, 2H26 등)
+            SecReport.article_title.op("~*")(
+                r"하반기|상반기|연간|\d{4}년|\dH\d{2}|전망포럼"
+                r"|(?:경제|금융시장|주식시장|시장)\s*전망"
+                r"|(?:업종|산업)\s*전망"
+            ),
+            # 개별 종목코드 제외: (071050), (030200.KS/매수) 등
+            SecReport.article_title.op("!~*")(r"\(\d{5,6}"),
+            SecReport.article_title.op("!~*")(r"\[\d{5,6}/"),
+            # 목표주가 언급 제외
+            SecReport.article_title.op("!~*")(r"목표주가"),
         )
 
     if report_id is not None:
