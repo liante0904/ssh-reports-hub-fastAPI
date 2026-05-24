@@ -1,3 +1,4 @@
+import json
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -107,12 +108,26 @@ INDUSTRY_REPORT_BOARD_FILTERS = (
 )
 
 
+def _parse_json_field(value):
+    """JSONB/list/str 어떤 타입으로 오든 list로 정규화"""
+    if value is None or value == '':
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            return parsed if isinstance(parsed, list) else []
+        except (json.JSONDecodeError, TypeError):
+            return []
+    return []
+
+
 def _report_to_api_item(report: SecReport, is_direct: bool = None) -> dict:
     archive = report.pdf_archive
-    # tags / stock_names 는 DB에 JSON 문자열로 저장되어 있으므로 파싱
-    import json as _json
-    tags = _json.loads(report.tags) if report.tags and report.tags != '[]' else []
-    stock_names = _json.loads(report.stock_names) if report.stock_names and report.stock_names != '[]' else []
+    # tags / stock_names 는 DB에서 list 또는 JSON 문자열로 올 수 있음
+    tags = _parse_json_field(report.tags)
+    stock_names = _parse_json_field(report.stock_names)
     item = {
         "report_id": report.report_id,
         "sec_firm_order": report.sec_firm_order,
