@@ -270,12 +270,16 @@ async def search_reports(
     company: Annotated[Optional[int], Query(ge=0)] = None,
     board: Annotated[Optional[int], Query(ge=0)] = None,
     has_summary: Annotated[Optional[bool], Query()] = None,
+    outlook: Annotated[Optional[bool], Query()] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
     db: Session = Depends(get_reports_db),
 ):
     """
     다양한 필터를 사용하여 리포트를 검색합니다.
+
+    outlook=true 시 제목에 '전망'이 포함된 시장 전망 리포트만 필터링합니다.
+    (2026년 하반기 전망, 연간 전망 등)
     """
     query = db.query(SecReport, SecFirmInfo.is_direct_link).outerjoin(
         SecFirmInfo, SecReport.sec_firm_order == SecFirmInfo.sec_firm_order
@@ -291,6 +295,12 @@ async def search_reports(
             SecReport.gemini_summary.isnot(None),
             SecReport.gemini_summary != "",
             SecReport.gemini_summary != " ",
+        )
+
+    # 시장 전망 리포트 필터링 (제목에 '전망' 포함)
+    if outlook:
+        query = query.filter(
+            SecReport.article_title.ilike("%전망%"),
         )
 
     if report_id is not None:
