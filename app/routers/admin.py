@@ -176,6 +176,42 @@ async def trigger_summarize(
     }
 
 
+@router.post("/enrich-tags")
+async def trigger_enrich_tags(
+    limit: int = Query(100, ge=1, le=1000, description="처리할 레포트 수"),
+    current_user: User = Depends(require_admin),
+):
+    """
+    레포트 태그 추출 배치 실행 (관리자 전용).
+
+    태그가 없는 레포트를 최대 limit건 처리합니다.
+    LLM을 사용하지 않는 규칙 기반(Regex + 키워드 사전) 방식입니다.
+    """
+    import sys
+    import os
+    enricher_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'enricher')
+    if enricher_path not in sys.path:
+        sys.path.insert(0, enricher_path)
+    
+    try:
+        from enricher_manager import EnricherManager
+        enricher = EnricherManager()
+        result = enricher.enrich_pending(limit=limit)
+        return {
+            "status": "success",
+            "total": result["total"],
+            "enriched": result["enriched"],
+            "skipped": result.get("skipped", 0),
+            "errors": result.get("errors", 0),
+        }
+    except Exception as e:
+        logger.error(f"Enrich tags failed: {e}")
+        return {
+            "status": "error",
+            "error": str(e),
+        }
+
+
 @router.get("/metrics")
 async def get_system_metrics(
     current_user: User = Depends(require_admin),

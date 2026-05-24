@@ -109,6 +109,10 @@ INDUSTRY_REPORT_BOARD_FILTERS = (
 
 def _report_to_api_item(report: SecReport, is_direct: bool = None) -> dict:
     archive = report.pdf_archive
+    # tags / stock_names 는 DB에 JSON 문자열로 저장되어 있으므로 파싱
+    import json as _json
+    tags = _json.loads(report.tags) if report.tags and report.tags != '[]' else []
+    stock_names = _json.loads(report.stock_names) if report.stock_names and report.stock_names != '[]' else []
     item = {
         "report_id": report.report_id,
         "sec_firm_order": report.sec_firm_order,
@@ -131,6 +135,9 @@ def _report_to_api_item(report: SecReport, is_direct: bool = None) -> dict:
         "gemini_summary": report.gemini_summary,
         "summary_time": report.summary_time,
         "summary_model": report.summary_model,
+        "tags": tags,
+        "stock_names": stock_names,
+        "sector": report.sector or '',
     }
     # PDF 아카이브 컬럼 추가
     if archive:
@@ -195,6 +202,9 @@ def _apply_search_filters(
     mkt_tp: Optional[str],
     company: Optional[int],
     board: Optional[int] = None,
+    tag: Optional[str] = None,
+    sector: Optional[str] = None,
+    stock: Optional[str] = None,
 ):
     if writer:
         query = query.filter(SecReport.writer.ilike(f"%{writer}%"))
@@ -208,6 +218,12 @@ def _apply_search_filters(
         query = query.filter(SecReport.sec_firm_order == company)
     if board is not None:
         query = query.filter(SecReport.article_board_order == board)
+    if tag:
+        query = query.filter(SecReport.tags.ilike(f'%"{tag}"%'))
+    if sector:
+        query = query.filter(SecReport.sector.ilike(f"%{sector}%"))
+    if stock:
+        query = query.filter(SecReport.stock_names.ilike(f'%"{stock}"%'))
     return query
 
 
@@ -280,6 +296,9 @@ async def search_reports(
     company: Annotated[Optional[int], Query(ge=0)] = None,
     board: Annotated[Optional[int], Query(ge=0)] = None,
     has_summary: Annotated[Optional[bool], Query()] = None,
+    tag: Annotated[Optional[str], Query(min_length=1, max_length=50)] = None,
+    sector: Annotated[Optional[str], Query(min_length=1, max_length=50)] = None,
+    stock: Annotated[Optional[str], Query(min_length=1, max_length=50)] = None,
     outlook: Annotated[Optional[bool], Query()] = None,
     outlook_year: Annotated[Optional[int], Query(ge=2000, le=2099)] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 100,
@@ -288,6 +307,7 @@ async def search_reports(
 ):
     """
     다양한 필터를 사용하여 리포트를 검색합니다.
+    tag, sector, stock 파라미터로 enricher 태그 기반 필터링이 가능합니다.
 
     outlook=true 시 제목에 '전망'이 포함된 시장 전망 리포트만 필터링합니다.
     (2026년 하반기 전망, 연간 전망 등)
@@ -297,7 +317,7 @@ async def search_reports(
     )
     if report_id is not None:
         query = query.filter(SecReport.report_id == report_id)
-    query = _apply_search_filters(query, writer, title, mkt_tp, company, board)
+    query = _apply_search_filters(query, writer, title, mkt_tp, company, board, tag, sector, stock)
     query = query.options(joinedload(SecReport.pdf_archive))
 
     # AI 요약이 있는 리포트만 필터링

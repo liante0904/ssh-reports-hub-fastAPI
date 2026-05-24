@@ -1,6 +1,6 @@
 import os
 import time
-from sqlalchemy import Column, Integer, String, Boolean, BigInteger, LargeBinary, ForeignKey, Date, DateTime, Float, func, Text, UniqueConstraint, Index
+from sqlalchemy import Column, Integer, String, Boolean, BigInteger, LargeBinary, ForeignKey, Date, DateTime, Float, Numeric, func, Text, UniqueConstraint, Index
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -73,6 +73,9 @@ class SecReport(Base):
     sync_status = Column(Integer, default=0)
     pdf_url = Column(String, default="")
     pdf_sync_status = Column(Integer, default=0)
+    tags = Column(String, default="[]")         # JSON array of tags
+    stock_names = Column(String, default="[]")  # JSON array of stock names
+    sector = Column(String, default="")         # industry sector
     
     # 발송 이력과의 관계
     sent_histories = relationship("ReportSentHistory", back_populates="report")
@@ -261,3 +264,25 @@ class DartDisclosure(Base):
     telegram_url = Column(String, nullable=True)
     tags_json = Column(Text, nullable=False, default="[]")
     fetched_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class InsiderTradingRaw(Base):
+    """임원/주요주주 내부자 거래 (dart-scraper가 적재하는 실데이터)"""
+    __tablename__ = "tbl_dart_insider_tradings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    corp_code = Column(String(8), index=True, nullable=False)
+    rcept_no = Column(String(14), unique=True, index=True, nullable=False)
+    report_dt = Column(Date, nullable=False, index=True)
+    insider_name = Column(String(100), nullable=False)
+    position = Column(String(100))
+    relation = Column(String(100))
+    trading_type = Column(String(10), nullable=False)
+    stock_code = Column(String(6), index=True)
+    trading_quantity = Column(Numeric(20, 0))
+    trading_price = Column(Numeric(20, 0))
+    trading_amount = Column(Numeric(25, 0))
+    after_holding = Column(Numeric(25, 0))
+    after_holding_ratio = Column(Numeric(10, 4))
+    raw_data = Column(Text)
+    created_at = Column(DateTime)

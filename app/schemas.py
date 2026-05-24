@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 import re
 from typing import Optional, List
@@ -45,7 +46,26 @@ class SecReportResponse(BaseModel):
     pdf_url: Optional[str] = None
     writer: Optional[str] = None
     gemini_summary: Optional[str] = None
+    tags: Optional[list[str]] = None
+    stock_names: Optional[list[str]] = None
+    sector: Optional[str] = None
     pdf_archive: Optional[PdfArchiveResponse] = None
+
+    @field_validator("tags", "stock_names", mode="before")
+    @classmethod
+    def parse_json_array(cls, v):
+        """DB에서 문자열로 저장된 JSON 배열을 list로 변환"""
+        if v is None:
+            return None
+        if isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                return parsed if isinstance(parsed, list) else []
+            except (json.JSONDecodeError, TypeError):
+                return []
+        return []
 
 
 class CompanyResponse(BaseModel):

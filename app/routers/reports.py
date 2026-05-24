@@ -18,6 +18,9 @@ async def get_reports(
     company: Annotated[Optional[int], Query(ge=0)] = None,
     board: Annotated[Optional[int], Query(ge=0)] = None,
     has_summary: Annotated[Optional[bool], Query()] = None,
+    tag: Annotated[Optional[str], Query(min_length=1, max_length=50)] = None,
+    sector: Annotated[Optional[str], Query(min_length=1, max_length=50)] = None,
+    stock: Annotated[Optional[str], Query(min_length=1, max_length=50)] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     db: Session = Depends(get_reports_db),
@@ -37,4 +40,11 @@ async def get_reports(
             SecReport.gemini_summary != "",
             SecReport.gemini_summary != " ",
         )
+    if tag:
+        # JSON 배열 내 태그 검색 (LIKE 기반, PostgreSQL/SQLite 모두 호환)
+        query = query.filter(SecReport.tags.ilike(f'%"{tag}"%'))
+    if sector:
+        query = query.filter(SecReport.sector.ilike(f"%{sector}%"))
+    if stock:
+        query = query.filter(SecReport.stock_names.ilike(f'%"{stock}"%'))
     return query.options(joinedload(SecReport.pdf_archive)).order_by(SecReport.reg_dt.desc(), SecReport.report_id.desc()).offset(offset).limit(limit).all()
