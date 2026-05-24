@@ -1,7 +1,7 @@
 import os
 import time
 from sqlalchemy import Column, Integer, String, Boolean, BigInteger, LargeBinary, ForeignKey, Date, DateTime, Float, Numeric, func, Text, UniqueConstraint, Index
-from sqlalchemy.orm import relationship, deferred
+from sqlalchemy.orm import relationship
 from .database import Base
 
 class TimestampMixin:
@@ -73,9 +73,9 @@ class SecReport(Base):
     sync_status = Column(Integer, default=0)
     pdf_url = Column(String, default="")
     pdf_sync_status = Column(Integer, default=0)
-    tags = deferred(Column(String, default="[]"))         # JSON array of tags (DB 컬럼 없으면 무시)
-    stock_names = deferred(Column(String, default="[]"))  # JSON array of stock names
-    sector = deferred(Column(String, default=""))         # industry sector
+    tags = Column(String, default="[]")         # JSON array of tags
+    stock_names = Column(String, default="[]")  # JSON array of stock names
+    sector = Column(String, default="")         # industry sector
     
     # 발송 이력과의 관계
     sent_histories = relationship("ReportSentHistory", back_populates="report")

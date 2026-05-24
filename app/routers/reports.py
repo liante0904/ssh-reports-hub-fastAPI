@@ -1,7 +1,7 @@
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session, joinedload, defer
+from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_reports_db
 from ..models import SecReport
@@ -41,21 +41,11 @@ async def get_reports(
             SecReport.gemini_summary != " ",
         )
     if tag:
-        try:
-            query = query.filter(SecReport.tags.ilike(f'%"{tag}"%'))
-        except Exception:
-            pass
+        query = query.filter(SecReport.tags.ilike(f'%"{tag}"%'))
     if sector:
-        try:
-            query = query.filter(SecReport.sector.ilike(f"%{sector}%"))
-        except Exception:
-            pass
+        query = query.filter(SecReport.sector.ilike(f"%{sector}%"))
     if stock:
-        try:
-            query = query.filter(SecReport.stock_names.ilike(f'%"{stock}"%'))
-        except Exception:
-            pass
-    return query.options(
-        joinedload(SecReport.pdf_archive),
-        defer(SecReport.tags), defer(SecReport.stock_names), defer(SecReport.sector)
-    ).order_by(SecReport.reg_dt.desc(), SecReport.report_id.desc()).offset(offset).limit(limit).all()
+        query = query.filter(SecReport.stock_names.ilike(f'%"{stock}"%'))
+    return query.options(joinedload(SecReport.pdf_archive)).order_by(
+        SecReport.reg_dt.desc(), SecReport.report_id.desc()
+    ).offset(offset).limit(limit).all()

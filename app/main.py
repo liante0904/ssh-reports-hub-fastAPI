@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 from contextlib import asynccontextmanager
 
@@ -67,6 +68,7 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=reports_engine)
     Base.metadata.create_all(bind=keywords_engine)
     _ensure_investment_note_layout_columns(keywords_engine)
+    _ensure_tags_columns(reports_engine)
     sentiment.seed_mock_sentiment_indicators(reports_engine)
     disclosure.seed_mock_disclosures(reports_engine)
     yield
@@ -89,6 +91,49 @@ def _ensure_investment_note_layout_columns(engine) -> None:
             continue
         with engine.begin() as conn:
             conn.execute(text(f"ALTER TABLE investment_notes ADD COLUMN {column_sql}"))
+
+
+def _ensure_tags_columns(engine) -> None:
+    """레포트 태그/종목명/산업 컬럼이 없으면 자동 생성 (enricher 용)"""
+    inspector = inspect(engine)
+    table_name = "tbl_sec_reports" if os.getenv("DB_BACKEND", "").lower() == "postgres" else "data_main_daily_send"
+    if table_name not in inspector.get_table_names():
+        return
+
+    existing_columns = {column["name"] for column in inspector.get_columns(table_name)}
+    # PostgreSQL: JSONB, SQLite: TEXT
+    if os.getenv("DB_BACKEND", "").lower() == "postgres":
+        migrations = {
+            "tags": "tags JSONB DEFAULT '[]'::jsonb",
+            "stock_names": "stock_names JSONB DEFAULT '[]'::jsonb",
+            "sector": "sector TEXT DEFAULT ''",
+        }
+        indexes = [
+            "CREATE INDEX IF NOT EXISTS idx_tb_sec_reports_tags ON tbl_sec_reports USING gin (tags)",
+            "CREATE INDEX IF NOT EXISTS idx_tb_sec_reports_stock_names ON tbl_sec_reports USING gin (stock_names)",
+            "CREATE INDEX IF NOT EXISTS idx_tb_sec_reports_sector ON tbl_sec_reports USING btree (sector)",
+        ]
+    else:
+        migrations = {
+            "tags": "tags TEXT DEFAULT '[]'",
+            "stock_names": "stock_names TEXT DEFAULT '[]'",
+            "sector": "sector TEXT DEFAULT ''",
+        }
+        indexes = []
+
+    for column_name, column_sql in migrations.items():
+        if column_name in existing_columns:
+            continue
+        with engine.begin() as conn:
+            conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_sql}"))
+            logger.info(f"Created column: {table_name}.{column_name}")
+
+    for index_sql in indexes:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text(index_sql))
+        except Exception:
+            pass  # 인덱스 중복 등은 무시
 
 
 configure_sensitive_log_filter()
