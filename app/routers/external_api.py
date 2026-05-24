@@ -246,6 +246,13 @@ async def get_industry_reports(
         or_(*board_filters),
         SecReport.main_ch_send_yn == "Y",
     )
+    # PostgreSQL 전용: 개별 종목코드 제외 (산업분석 게시판에 올라온 기업분석 필터링)
+    if db.get_bind().dialect.name == "postgresql":
+        query = query.filter(
+            SecReport.article_title.op("!~*")(r"\(\d{5,6}"),
+            SecReport.article_title.op("!~*")(r"\[\d{5,6}/"),
+            SecReport.article_title.op("!~*")(r"목표주가"),
+        )
     if last_report_id is not None:
         query = query.filter(SecReport.report_id < last_report_id)
     query = _apply_search_filters(query, writer, title, mkt_tp, company, board)
