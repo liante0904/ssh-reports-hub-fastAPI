@@ -251,6 +251,9 @@ async def get_industry_reports(
         query = query.filter(
             SecReport.article_title.op("!~*")(r"\(\d{5,6}"),
             SecReport.article_title.op("!~*")(r"\[\d{5,6}/"),
+            SecReport.article_title.op("!~*")(
+                r"\[[^\]]+/(매수|매도|중립|시장수익률|Buy|Hold|Sell|Neutral|Outperform|Underperform|Not\s*Rated|Trading\s*Buy)"
+            ),
             SecReport.article_title.op("!~*")(r"목표주가"),
         )
     if last_report_id is not None:
@@ -321,6 +324,10 @@ async def search_reports(
             # 개별 종목코드 제외: (071050), (030200.KS/매수) 등
             SecReport.article_title.op("!~*")(r"\(\d{5,6}"),
             SecReport.article_title.op("!~*")(r"\[\d{5,6}/"),
+            # 개별 종목 투자의견 제외: [회사명/매수], [회사명/Buy] 등
+            SecReport.article_title.op("!~*")(
+                r"\[[^\]]+/(매수|매도|중립|시장수익률|Buy|Hold|Sell|Neutral|Outperform|Underperform|Not\s*Rated|Trading\s*Buy)"
+            ),
             # 목표주가 언급 제외
             SecReport.article_title.op("!~*")(r"목표주가"),
         )
