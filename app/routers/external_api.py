@@ -278,6 +278,7 @@ async def search_reports(
     board: Annotated[Optional[int], Query(ge=0)] = None,
     has_summary: Annotated[Optional[bool], Query()] = None,
     outlook: Annotated[Optional[bool], Query()] = None,
+    outlook_year: Annotated[Optional[int], Query(ge=2000, le=2099)] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
     db: Session = Depends(get_reports_db),
@@ -323,6 +324,11 @@ async def search_reports(
             # 목표주가 언급 제외
             SecReport.article_title.op("!~*")(r"목표주가"),
         )
+        # 연도별 세분 필터 (outlook_year=2026 → 제목에 "2026년" 포함)
+        if outlook_year:
+            query = query.filter(
+                SecReport.article_title.ilike(f"%{outlook_year}년%"),
+            )
 
     if report_id is not None:
         query = query.order_by(SecReport.report_id.desc())
