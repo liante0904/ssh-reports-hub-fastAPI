@@ -1,7 +1,7 @@
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, defer
 
 from ..database import get_reports_db
 from ..models import SecReport
@@ -41,10 +41,21 @@ async def get_reports(
             SecReport.gemini_summary != " ",
         )
     if tag:
-        # JSON 배열 내 태그 검색 (LIKE 기반, PostgreSQL/SQLite 모두 호환)
-        query = query.filter(SecReport.tags.ilike(f'%"{tag}"%'))
+        try:
+            query = query.filter(SecReport.tags.ilike(f'%"{tag}"%'))
+        except Exception:
+            pass
     if sector:
-        query = query.filter(SecReport.sector.ilike(f"%{sector}%"))
+        try:
+            query = query.filter(SecReport.sector.ilike(f"%{sector}%"))
+        except Exception:
+            pass
     if stock:
-        query = query.filter(SecReport.stock_names.ilike(f'%"{stock}"%'))
-    return query.options(joinedload(SecReport.pdf_archive)).order_by(SecReport.reg_dt.desc(), SecReport.report_id.desc()).offset(offset).limit(limit).all()
+        try:
+            query = query.filter(SecReport.stock_names.ilike(f'%"{stock}"%'))
+        except Exception:
+            pass
+    return query.options(
+        joinedload(SecReport.pdf_archive),
+        defer(SecReport.tags), defer(SecReport.stock_names), defer(SecReport.sector)
+    ).order_by(SecReport.reg_dt.desc(), SecReport.report_id.desc()).offset(offset).limit(limit).all()

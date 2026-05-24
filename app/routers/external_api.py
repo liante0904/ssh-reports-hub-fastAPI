@@ -2,8 +2,8 @@ import json
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy import and_, or_, func
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import and_, or_, func, text
+from sqlalchemy.orm import Session, joinedload, defer
 
 from ..database import get_reports_db
 from ..models import SecReport, SecFirmInfo, SecBoardInfo
@@ -125,9 +125,19 @@ def _parse_json_field(value):
 
 def _report_to_api_item(report: SecReport, is_direct: bool = None) -> dict:
     archive = report.pdf_archive
-    # tags / stock_names 는 DB에서 list 또는 JSON 문자열로 올 수 있음
-    tags = _parse_json_field(report.tags)
-    stock_names = _parse_json_field(report.stock_names)
+    # tags/stock_names/sector 컬럼이 DB에 없을 수 있으므로 try/except
+    try:
+        tags = _parse_json_field(report.tags) if hasattr(report, 'tags') else []
+    except Exception:
+        tags = []
+    try:
+        stock_names = _parse_json_field(report.stock_names) if hasattr(report, 'stock_names') else []
+    except Exception:
+        stock_names = []
+    try:
+        sector = report.sector or ''
+    except Exception:
+        sector = ''
     item = {
         "report_id": report.report_id,
         "sec_firm_order": report.sec_firm_order,
@@ -152,7 +162,7 @@ def _report_to_api_item(report: SecReport, is_direct: bool = None) -> dict:
         "summary_model": report.summary_model,
         "tags": tags,
         "stock_names": stock_names,
-        "sector": report.sector or '',
+        "sector": sector,
     }
     # PDF 아카이브 컬럼 추가
     if archive:
@@ -234,11 +244,20 @@ def _apply_search_filters(
     if board is not None:
         query = query.filter(SecReport.article_board_order == board)
     if tag:
-        query = query.filter(SecReport.tags.ilike(f'%"{tag}"%'))
+        try:
+            query = query.filter(SecReport.tags.ilike(f'%"{tag}"%'))
+        except Exception:
+            pass  # 컬럼이 없으면 필터 무시
     if sector:
-        query = query.filter(SecReport.sector.ilike(f"%{sector}%"))
+        try:
+            query = query.filter(SecReport.sector.ilike(f"%{sector}%"))
+        except Exception:
+            pass
     if stock:
-        query = query.filter(SecReport.stock_names.ilike(f'%"{stock}"%'))
+        try:
+            query = query.filter(SecReport.stock_names.ilike(f'%"{stock}"%'))
+        except Exception:
+            pass
     return query
 
 
@@ -290,7 +309,7 @@ async def get_industry_reports(
     if last_report_id is not None:
         query = query.filter(SecReport.report_id < last_report_id)
     query = _apply_search_filters(query, writer, title, mkt_tp, company, board)
-    query = query.options(joinedload(SecReport.pdf_archive))
+    query = query.options(joinedload(SecReport.pdf_archive), defer(SecReport.tags), defer(SecReport.stock_names), defer(SecReport.sector))
 
     rows, has_more = _paginate_query(
         query.order_by(SecReport.report_id.desc()),
@@ -333,7 +352,7 @@ async def search_reports(
     if report_id is not None:
         query = query.filter(SecReport.report_id == report_id)
     query = _apply_search_filters(query, writer, title, mkt_tp, company, board, tag, sector, stock)
-    query = query.options(joinedload(SecReport.pdf_archive))
+    query = query.options(joinedload(SecReport.pdf_archive), defer(SecReport.tags), defer(SecReport.stock_names), defer(SecReport.sector))
 
     # AI 요약이 있는 리포트만 필터링
     if has_summary:
