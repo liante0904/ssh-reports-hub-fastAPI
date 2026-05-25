@@ -69,8 +69,14 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=keywords_engine)
     _ensure_investment_note_layout_columns(keywords_engine)
     _ensure_tags_columns(reports_engine)
-    sentiment.seed_mock_sentiment_indicators(reports_engine)
-    disclosure.seed_mock_disclosures(reports_engine)
+    try:
+        sentiment.seed_mock_sentiment_indicators(reports_engine)
+    except Exception:
+        logger.warning("Failed to seed mock sentiment indicators", exc_info=True)
+    try:
+        disclosure.seed_mock_disclosures(reports_engine)
+    except Exception:
+        logger.warning("Failed to seed mock disclosures", exc_info=True)
     yield
 
 
