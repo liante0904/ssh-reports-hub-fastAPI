@@ -9,8 +9,8 @@ services:
     volumes:
       - .:/app
       - /home/ubuntu/sqlite3:/data
-      - /home/ubuntu/prod/telegram-stock-info-bot/send:/screening_files:ro
-      - /home/ubuntu/prod/ssh-reports-scraper/logs:/logs/scraper:ro
+      - /home/ubuntu/legacy/telegram-stock-info-bot/send:/screening_files:ro
+      - /home/ubuntu/workspace/external.reports-hub/apps/backend/ssh-reports-hub-fastAPI/logs:/logs/scraper:ro
       - /home/ubuntu/logs:/logs/main:ro
     command: ["/opt/venv/bin/uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     env_file:
