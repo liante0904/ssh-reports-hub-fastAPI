@@ -38,15 +38,9 @@ from .logging_config import (
 from .models import ReportKeyword, User
 from .routers import (
     admin,
-    cnn_sentiment,
-    consensus,
-    disclosure,
     favorites,
-    notes,
     external_api,
     reports,
-    screening,
-    sentiment,
 )
 from .schemas import KeywordCreate, KeywordResponse, KeywordSyncRequest, TelegramUser
 from .security import (
@@ -67,36 +61,8 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=reports_engine)
     Base.metadata.create_all(bind=keywords_engine)
-    _ensure_investment_note_layout_columns(keywords_engine)
     _ensure_tags_columns(reports_engine)
-    try:
-        sentiment.seed_mock_sentiment_indicators(reports_engine)
-    except Exception:
-        logger.warning("Failed to seed mock sentiment indicators", exc_info=True)
-    try:
-        disclosure.seed_mock_disclosures(reports_engine)
-    except Exception:
-        logger.warning("Failed to seed mock disclosures", exc_info=True)
     yield
-
-
-def _ensure_investment_note_layout_columns(engine) -> None:
-    inspector = inspect(engine)
-    if "investment_notes" not in inspector.get_table_names():
-        return
-
-    existing_columns = {column["name"] for column in inspector.get_columns("investment_notes")}
-    migrations = {
-        "width": "width INTEGER DEFAULT 250",
-        "height": "height INTEGER DEFAULT 220",
-        "parent_id": "parent_id INTEGER",
-    }
-
-    for column_name, column_sql in migrations.items():
-        if column_name in existing_columns:
-            continue
-        with engine.begin() as conn:
-            conn.execute(text(f"ALTER TABLE investment_notes ADD COLUMN {column_sql}"))
 
 
 def _ensure_tags_columns(engine) -> None:
@@ -297,16 +263,6 @@ async def update_keyword(
 app.include_router(admin.router)
 app.include_router(reports.router)
 app.include_router(external_api.router)
-app.include_router(consensus.router)
-app.include_router(notes.router)
-app.include_router(notes.api_router)
-app.include_router(sentiment.router)
-app.include_router(sentiment.api_router)
-app.include_router(cnn_sentiment.router)
-app.include_router(cnn_sentiment.api_router)
-app.include_router(disclosure.router)
-app.include_router(disclosure.api_router)
-app.include_router(screening.router)
 app.include_router(favorites.router)
 
 

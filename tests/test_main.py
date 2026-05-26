@@ -109,6 +109,14 @@ async def client():
 
     app.dependency_overrides[get_reports_db] = override_get_reports_db
     app.dependency_overrides[get_keywords_db] = override_get_reports_db
+    # JWT 토큰 검증에 일관된 시크릿 사용
+    app.dependency_overrides[get_settings_dep] = lambda: Settings(
+        app_env="prod",
+        jwt_secret_key="test-jwt-secret-for-fav-tests" * 2,
+        telegram_bot_token="dummy-token",
+        allowed_telegram_user_ids="123456",
+        allow_auth_bypass=False,
+    )
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as test_client:
         yield test_client
@@ -407,3 +415,110 @@ async def test_auth_telegram_whitelisted_user_skips_signature_check(client):
     assert response.status_code == 200
     payload = response.json()
     assert "access_token" in payload
+
+
+# ──────────────────────────────────────────────
+# /favorites (즐겨찾기)
+# ──────────────────────────────────────────────
+
+async def _get_auth_headers(client):
+    """즐겨찾기 테스트용 인증 토큰 발급 (client fixture가 이미 설정 오버라이드 함)"""
+    resp = await client.post(
+        "/auth/telegram",
+        json={
+            "id": 123456,
+            "first_name": "TestFav",
+            "auth_date": 1600000000,
+            "hash": "bypass",
+        },
+    )
+    token = resp.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.mark.anyio
+async def test_favorites_empty(client):
+    """즐겨찾기 없는 상태에서 빈 목록 반환"""
+    headers = await _get_auth_headers(client)
+    resp = await client.get("/favorites", headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["items"] == []
+    assert data["count"] == 0
+
+
+@pytest.mark.anyio
+async def test_favorites_add_and_list(client):
+    """즐겨찾기 추가 후 목록 조회"""
+    headers = await _get_auth_headers(client)
+
+    resp = await client.post("/favorites/1", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "added"
+
+    resp = await client.get("/favorites", headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["count"] == 1
+    assert data["items"][0]["report_id"] == 1
+
+
+@pytest.mark.anyio
+async def test_favorites_duplicate(client):
+    """중복 즐겨찾기 추가 시 already_exists 반환"""
+    headers = await _get_auth_headers(client)
+
+    await client.post("/favorites/2", headers=headers)
+    resp = await client.post("/favorites/2", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "already_exists"
+
+
+@pytest.mark.anyio
+async def test_favorites_remove(client):
+    """즐겨찾기 제거 후 목록에서 사라짐"""
+    headers = await _get_auth_headers(client)
+
+    await client.post("/favorites/3", headers=headers)
+    resp = await client.delete("/favorites/3", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "removed"
+
+    resp = await client.get("/favorites", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["items"] == []
+
+
+@pytest.mark.anyio
+async def test_favorites_remove_not_found(client):
+    """존재하지 않는 즐겨찾기 제거 시 not_found"""
+    headers = await _get_auth_headers(client)
+
+    resp = await client.delete("/favorites/999", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "not_found"
+
+
+@pytest.mark.anyio
+async def test_favorites_unauthorized(client):
+    """인증 없이 즐겨찾기 접근 시 403"""
+    resp = await client.get("/favorites")
+    assert resp.status_code in {401, 403}
+
+
+@pytest.mark.anyio
+async def test_favorites_response_structure(client):
+    """즐겨찾기 응답에 필수 키 존재 확인"""
+    headers = await _get_auth_headers(client)
+
+    await client.post("/favorites/1", headers=headers)
+    resp = await client.get("/favorites", headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    item = data["items"][0]
+    assert "report_id" in item
+    assert "firm_nm" in item
+    assert "article_title" in item
+    assert "favorite_created_at" in item
+    assert "pdf_archive" in item
+

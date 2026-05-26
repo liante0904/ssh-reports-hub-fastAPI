@@ -13,7 +13,7 @@ DB_BACKEND = os.getenv("DB_BACKEND", "sqlite").lower()
 MAIN_TABLE_NAME = "tbl_sec_reports" if DB_BACKEND == "postgres" else "data_main_daily_send"
 
 class User(Base):
-    __tablename__ = "tbm_sec_reports_telegram_users"
+    __tablename__ = "tbl_sec_reports_telegram_users"
     id = Column(BigInteger, primary_key=True, index=True)
     first_name = Column(String)
     last_name = Column(String, nullable=True)
@@ -23,14 +23,13 @@ class User(Base):
     is_admin = Column(Boolean, default=False)
     created_at = Column(BigInteger, default=lambda: int(time.time()))
     keywords = relationship("ReportKeyword", back_populates="owner")
-    notes = relationship("InvestmentNote", back_populates="owner", cascade="all, delete-orphan")
     favorites = relationship("ReportFavorite", back_populates="owner", cascade="all, delete-orphan")
 
 
 class ReportFavorite(Base):
-    __tablename__ = "tbm_sec_reports_favorites"
+    __tablename__ = "tbl_sec_reports_favorites"
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(BigInteger, ForeignKey("tbm_sec_reports_telegram_users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(BigInteger, ForeignKey("tbl_sec_reports_telegram_users.id", ondelete="CASCADE"), nullable=False)
     report_id = Column(BigInteger, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     owner = relationship("User", back_populates="favorites")
@@ -41,9 +40,9 @@ class ReportFavorite(Base):
     )
 
 class ReportKeyword(Base, TimestampMixin):
-    __tablename__ = "tbm_sec_reports_alert_keywords"
+    __tablename__ = "tbl_sec_reports_alert_keywords"
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(BigInteger, ForeignKey("tbm_sec_reports_telegram_users.id"))
+    user_id = Column(BigInteger, ForeignKey("tbl_sec_reports_telegram_users.id"))
     keyword = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
     owner = relationship("User", back_populates="keywords")
@@ -136,24 +135,6 @@ class SecBoardInfo(Base):
     label_nm = Column(String, nullable=True)
 
 
-class InvestmentNote(Base, TimestampMixin):
-    __tablename__ = "investment_notes"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(BigInteger, ForeignKey("tbm_sec_reports_telegram_users.id"), nullable=False)
-    content = Column(Text, default="")
-    color_bg = Column(String(20))
-    color_border = Column(String(20))
-    x_pos = Column(Integer, default=100)
-    y_pos = Column(Integer, default=100)
-    width = Column(Integer, default=250)
-    height = Column(Integer, default=220)
-    z_index = Column(Integer, default=10)
-    parent_id = Column(Integer, nullable=True, index=True)
-
-    owner = relationship("User", back_populates="notes")
-
-
 class ReportSentHistory(Base):
     __tablename__ = "tbl_report_send_history"
     id = Column(Integer, primary_key=True, index=True)
@@ -163,126 +144,3 @@ class ReportSentHistory(Base):
     sent_at = Column(DateTime(timezone=True), server_default=func.now())
     
     report = relationship("SecReport", back_populates="sent_histories")
-
-
-class ConsensusHistory(Base):
-    __tablename__ = "tbm_consensus_history"
-
-    code = Column(String, primary_key=True)
-    date = Column(DateTime, primary_key=True)
-    target_period = Column(String, primary_key=True)
-
-    name = Column(String, nullable=False)
-    sector = Column(String, nullable=True)
-    current_price = Column(Float, nullable=True)
-    market_cap = Column(Float, nullable=True)
-    per = Column(Float, nullable=True)
-    pbr = Column(Float, nullable=True)
-    roe = Column(Float, nullable=True)
-    dividend_yield = Column(Float, nullable=True)
-    operating_profit = Column(Float, nullable=True)
-    net_income = Column(Float, nullable=True)
-    sales = Column(Float, nullable=True)
-    eps = Column(Float, nullable=True)
-    rev_1m = Column(Float, nullable=True)
-    rev_3m = Column(Float, nullable=True)
-    updated_at = Column(DateTime, nullable=False, server_default=func.now())
-
-
-class MarketSentimentIndicator(Base):
-    __tablename__ = "tbm_market_sentiment_indicators"
-
-    id = Column(Integer, primary_key=True, index=True)
-    key = Column(String, nullable=False, unique=True, index=True)
-    title = Column(String, nullable=False)
-    category = Column(String, nullable=False, default="general")
-    description = Column(Text, nullable=True)
-    value = Column(Float, nullable=False, default=0.0)
-    unit = Column(String, nullable=False, default="pt")
-    score = Column(Float, nullable=False, default=0.0)
-    status = Column(String, nullable=False, default="neutral")
-    source = Column(String, nullable=True)
-    sort_order = Column(Integer, nullable=False, default=0)
-    updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
-
-
-class MarketSentimentSnapshot(Base):
-    __tablename__ = "tbm_market_sentiment_snapshots"
-    __table_args__ = (
-        UniqueConstraint("source", "snapshot_ts", name="uq_market_sentiment_snapshot_source_ts"),
-    )
-
-    id = Column(Integer, primary_key=True, index=True)
-    source = Column(String, nullable=False, default="cnn", index=True)
-    snapshot_ts = Column(DateTime(timezone=True), nullable=False, index=True)
-    score = Column(Float, nullable=False, default=0.0)
-    rating = Column(String, nullable=False, default="neutral")
-    history_json = Column(Text, nullable=False, default="{}")
-    indicators_json = Column(Text, nullable=False, default="{}")
-    raw_json = Column(Text, nullable=False, default="{}")
-    fetched_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-
-
-class MarketSentimentDailySnapshot(Base):
-    __tablename__ = "tbm_market_sentiment_daily_snapshots"
-    __table_args__ = (
-        UniqueConstraint("source", "snapshot_date", name="uq_market_sentiment_daily_snapshot_source_date"),
-    )
-
-    id = Column(Integer, primary_key=True, index=True)
-    source = Column(String, nullable=False, default="cnn", index=True)
-    snapshot_date = Column(Date, nullable=False, index=True)
-    snapshot_ts = Column(DateTime(timezone=True), nullable=False)
-    score = Column(Float, nullable=False, default=0.0)
-    rating = Column(String, nullable=False, default="neutral")
-    history_json = Column(Text, nullable=False, default="{}")
-    indicators_json = Column(Text, nullable=False, default="{}")
-    raw_json = Column(Text, nullable=False, default="{}")
-    fetched_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-
-
-class DartDisclosure(Base):
-    __tablename__ = "tbm_dart_disclosures"
-
-    id = Column(Integer, primary_key=True, index=True)
-    source = Column(String, nullable=False, default="dart", index=True)
-    published_at = Column(DateTime(timezone=True), nullable=False, index=True)
-    company_name = Column(String, nullable=False, index=True)
-    company_code = Column(String, nullable=True, index=True)
-    disclosure_title = Column(String, nullable=False)
-    disclosure_type = Column(String, nullable=False, default="공시")
-    insider_name = Column(String, nullable=True)
-    insider_role = Column(String, nullable=True)
-    transaction_type = Column(String, nullable=False, default="buy")
-    shares = Column(Float, nullable=True)
-    amount = Column(Float, nullable=True)
-    avg_price = Column(Float, nullable=True)
-    ownership_after = Column(Float, nullable=True)
-    signal_score = Column(Float, nullable=False, default=0.0)
-    summary_text = Column(Text, nullable=True)
-    dart_url = Column(String, nullable=True)
-    telegram_url = Column(String, nullable=True)
-    tags_json = Column(Text, nullable=False, default="[]")
-    fetched_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-
-
-class InsiderTradingRaw(Base):
-    """임원/주요주주 내부자 거래 (dart-scraper가 적재하는 실데이터)"""
-    __tablename__ = "tbl_dart_insider_tradings"
-
-    id = Column(Integer, primary_key=True, index=True)
-    corp_code = Column(String(8), index=True, nullable=False)
-    rcept_no = Column(String(14), unique=True, index=True, nullable=False)
-    report_dt = Column(Date, nullable=False, index=True)
-    insider_name = Column(String(100), nullable=False)
-    position = Column(String(100))
-    relation = Column(String(100))
-    trading_type = Column(String(10), nullable=False)
-    stock_code = Column(String(6), index=True)
-    trading_quantity = Column(Numeric(20, 0))
-    trading_price = Column(Numeric(20, 0))
-    trading_amount = Column(Numeric(25, 0))
-    after_holding = Column(Numeric(25, 0))
-    after_holding_ratio = Column(Numeric(10, 4))
-    raw_data = Column(Text)
-    created_at = Column(DateTime)
