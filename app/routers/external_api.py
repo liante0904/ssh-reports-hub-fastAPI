@@ -6,7 +6,7 @@ from sqlalchemy import and_, or_, func
 from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_reports_db
-from ..models import SecReport, SecFirmInfo, SecBoardInfo
+from ..models import SecReport, SecFirmInfo, SecBoardInfo, PdfArchive
 from ..schemas import CompanyResponse, BoardResponse
 
 # External API 라우터 — 프론트엔드가 직접 호출하는 공개 API
@@ -290,6 +290,17 @@ async def get_industry_reports(
     if last_report_id is not None:
         query = query.filter(SecReport.report_id < last_report_id)
     query = _apply_search_filters(query, writer, title, mkt_tp, company, board)
+
+    # PdfArchive와 outerjoin하여 page_count 기반 필터링
+    query = query.outerjoin(PdfArchive, SecReport.report_id == PdfArchive.report_id)
+    query = query.filter(
+        or_(
+            PdfArchive.report_id == None,      # 아카이브 없음 → 통과
+            PdfArchive.page_count == None,      # 페이지 정보 없음 → 통과
+            PdfArchive.page_count >= 10,        # 10페이지 이상만 통과
+        )
+    )
+
     query = query.options(joinedload(SecReport.pdf_archive))
 
     rows, has_more = _paginate_query(
