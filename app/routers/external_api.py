@@ -283,7 +283,7 @@ async def get_industry_reports(
             SecReport.article_title.op("!~*")(r"\(\d{5,6}"),        # 한국 종목코드 (071050)
             SecReport.article_title.op("!~*")(r"\[\d{5,6}/"),        # [071050/...] 형식
             SecReport.article_title.op("!~*")(r"\([A-Z]{1,5}\.[A-Z]{2}\)"),  # 해외티커 (NVDA.US)
-            SecReport.article_title.op("!~*")(r"\(\d+\.KS\)"),       # 코스피티커 (005930.KS)
+            SecReport.article_title.op("!~*")(r"\(\d+\.K[QS]\)"),       # 국내티커 (005930.KS, 123456.KQ)
             SecReport.article_title.op("!~*")(
                 r"\[[^\]]+/(매수|매도|중립|시장수익률|Buy|Hold|Sell|Neutral|Outperform|Underperform|Not\s*Rated|Trading\s*Buy)"
             ),
