@@ -1,5 +1,47 @@
 # Changelog
 
+## 2026-05-26
+
+### Refactored
+
+- 테이블명 체계 정리: `tbm_` → `tbl_`로 변경 (favorites, telegram_users, alert_keywords 등).
+- 비핵심 라우터 이관: `consensus`, `sentiment`, `cnn_sentiment`, `disclosure`, `screening`, `notes` 라우터를 `internal.private-hub` 프로젝트로 이관하여 본 프로젝트를 리포트 중심으로 슬림화했습니다.
+- `app/main.py`, `app/models.py`, `app/schemas.py`에서 불필요한 코드 및 스키마 제거.
+
+### Fixed
+
+- Favorites API 테스트 7건을 추가하고 안정성을 확인했습니다.
+
+## 2026-05-24
+
+### Added
+
+- **Enricher 기능 추가**: 앱 시작 시 `tags`, `stock_names`, `sector` 컬럼 자동 생성 (Lifespan Migration).
+- **통합 검색 필터 고도화**: `/external/api/search` 및 `/reports`에 `tag`, `sector`, `stock` 필터 추가.
+- **시장 전망 필터 추가**: `/external/api/search`에 `outlook` (Boolean) 및 `outlook_year` 필터 추가. 정규표현식을 통해 개별 종목 분석은 제외하고 순수 시장 전망 리포트만 추출합니다.
+- **산업분석 필터 강화**: PostgreSQL 정규표현식을 활용하여 산업분석 게시판 내 개별 종목 리포트(종목코드 포함 제목)를 필터링하는 기능을 추가했습니다.
+
+### Fixed
+
+- JSONB 컬럼이 이미 리스트로 역직렬화된 경우 발생하는 `TypeError` 수정.
+- DB 컬럼이 없는 상태에서도 쿼리가 안전하게 동작하도록 `deferred()` 및 `try/except` 적용.
+- 권한 오류로 인한 시작 시 크래시 방지를 위해 `seed_mock` 호출부를 `try/except`로 래핑.
+
+## 2026-05-14
+
+### Changed
+
+- **ORDS 호환 라우트 제거**: 프론트엔드의 `/external/api` 이관이 완료됨에 따라 `/ords/*` 경로를 제거했습니다.
+- **API_REFERENCE.md 도입**: 테스트 파일과 1:1 매칭되는 API 문서를 도입하여 문서와 구현의 정합성을 높였습니다.
+
+## 2026-05-05
+
+### Added
+
+- **Admin 기능 강화**: 서버 메트릭(CPU, RAM, Disk) 조회 API(`/admin/metrics`) 및 실시간 로그 브라우저(`/admin/logs`, `/admin/logs/view`) 추가.
+- **Screening API**: 일별 엑셀 파일 조회 및 데이터소스 추상이 적용된 스크리닝 라우터 추가.
+- **DeepSeek Summary**: PDF 텍스트 추출(PyMuPDF) 및 DeepSeek 모델 기반 요약 관리 기능 추가.
+
 ## 2026-05-02
 
 ### Added

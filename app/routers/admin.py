@@ -371,6 +371,75 @@ async def get_system_metrics(
     }
 
 
+@router.get("/firm-health")
+async def get_firm_health(
+    current_user: User = Depends(require_admin),
+    reports_db: Session = Depends(get_reports_db),
+):
+    """
+    전체 증권사별 마지막 레포트 일자 및 staleness 상태를 반환합니다.
+    30일 이상 → STALE, 7일 이상 → WARN, 그 외 → OK
+    """
+    from datetime import date
+    today = date.today()
+
+    rows = (
+        reports_db.query(
+            SecReport.sec_firm_order,
+            SecReport.firm_nm,
+            func.count(SecReport.report_id),
+            func.max(SecReport.reg_dt),
+            func.max(SecReport.save_time),
+        )
+        .filter(SecReport.sec_firm_order.isnot(None))
+        .group_by(SecReport.sec_firm_order, SecReport.firm_nm)
+        .order_by(SecReport.sec_firm_order)
+        .all()
+    )
+
+    firms = []
+    alerts = []
+    for r in rows:
+        o, nm, total, reg_dt, save_dt = r
+        reg_str = str(reg_dt or "")
+        try:
+            last_date = date(int(reg_str[:4]), int(reg_str[4:6]), int(reg_str[6:8]))
+            days_ago = (today - last_date).days
+        except Exception:
+            days_ago = -1
+
+        if days_ago >= 30:
+            status = "STALE"
+        elif days_ago >= 7:
+            status = "WARN"
+        elif days_ago < 0:
+            status = "FUTURE"
+        else:
+            status = "OK"
+
+        firms.append({
+            "sec_firm_order": o,
+            "firm_nm": nm or "?",
+            "total": total,
+            "last_reg_dt": reg_str,
+            "last_save": str(save_dt)[:10] if save_dt else None,
+            "days_ago": days_ago,
+            "status": status,
+        })
+
+        if status in ("STALE", "WARN"):
+            alerts.append(firms[-1])
+
+    return {
+        "firms": firms,
+        "alerts": alerts,
+        "total_firms": len(firms),
+        "stale_count": sum(1 for f in firms if f["status"] == "STALE"),
+        "warn_count": sum(1 for f in firms if f["status"] == "WARN"),
+        "ok_count": sum(1 for f in firms if f["status"] == "OK"),
+    }
+
+
 # ──────────────────────────────────────────────
 #  로그 브라우저 (/admin/logs, /admin/logs/view)
 # ──────────────────────────────────────────────
