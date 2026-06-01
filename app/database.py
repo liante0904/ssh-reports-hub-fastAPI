@@ -1,18 +1,45 @@
 import os
+import sys
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from dotenv import load_dotenv
-from ssh_library.database import BasePostgreSQLManager
+
+# ssh-library 공통 라이브러리 로드 (__init__.py의 무거운 의존성 회피)
+import importlib.util
+_LIB_SRC = None
+for _p in ["/opt/ssh-library/src", os.path.expanduser("~/workspace/lib/ssh-library/src")]:
+    if os.path.isdir(_p):
+        _LIB_SRC = _p
+        break
+
+if _LIB_SRC:
+    _spec = importlib.util.spec_from_file_location(
+        "ssh_library.database",
+        os.path.join(_LIB_SRC, "ssh_library", "database.py")
+    )
+    _db_module = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_db_module)
+    BasePostgreSQLManager = _db_module.BasePostgreSQLManager
+else:
+    # fallback: ssh-library 없으면 env-only
+    BasePostgreSQLManager = None
 
 load_dotenv()
 
 # --- 공통 PostgreSQL 설정 (ssh-library 기반 중앙 credential 관리) ---
-_pg_manager = BasePostgreSQLManager()
-PG_USER = os.getenv("POSTGRES_USER", _pg_manager.user)
-PG_PASSWORD = os.getenv("POSTGRES_PASSWORD") or _pg_manager.password
-PG_HOST = os.getenv("POSTGRES_HOST", _pg_manager.host)
-PG_PORT = os.getenv("POSTGRES_PORT", _pg_manager.port)
-PG_DB = os.getenv("POSTGRES_DB", _pg_manager.database)
+if BasePostgreSQLManager is not None:
+    _pg_manager = BasePostgreSQLManager()
+    PG_USER = os.getenv("POSTGRES_USER", _pg_manager.user)
+    PG_PASSWORD = os.getenv("POSTGRES_PASSWORD") or _pg_manager.password
+    PG_HOST = os.getenv("POSTGRES_HOST", _pg_manager.host)
+    PG_PORT = os.getenv("POSTGRES_PORT", _pg_manager.port)
+    PG_DB = os.getenv("POSTGRES_DB", _pg_manager.database)
+else:
+    PG_USER = os.getenv("POSTGRES_USER", "ssh_reports_hub")
+    PG_PASSWORD = os.getenv("POSTGRES_PASSWORD", "")
+    PG_HOST = os.getenv("POSTGRES_HOST", "main-postgres")
+    PG_PORT = os.getenv("POSTGRES_PORT", "5432")
+    PG_DB = os.getenv("POSTGRES_DB", "ssh_reports_hub")
 
 # --- 1. 리포트용 DB (PostgreSQL 고정) ---
 REPORTS_DATABASE_URL = f"postgresql://{PG_USER}:{PG_PASSWORD}@{PG_HOST}:{PG_PORT}/{PG_DB}"
