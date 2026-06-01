@@ -26,7 +26,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
         response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-        response.headers.setdefault("Cache-Control", "no-store")
+        # external API 는 공개 데이터이므로 캐시 허용 (Redis 캐싱과 함께 사용)
+        if not request.url.path.startswith("/external/api/"):
+            response.headers.setdefault("Cache-Control", "no-store")
         if request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https":
             response.headers.setdefault(
                 "Strict-Transport-Security",

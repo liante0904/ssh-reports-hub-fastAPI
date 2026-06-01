@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import and_, or_, func
 from sqlalchemy.orm import Session, joinedload
 
+from ..cache import cache_response
 from ..database import get_reports_db
 from ..models import SecReport, SecFirmInfo, SecBoardInfo, PdfArchive
 from ..schemas import CompanyResponse, BoardResponse
@@ -13,7 +14,8 @@ from ..schemas import CompanyResponse, BoardResponse
 router = APIRouter(prefix="/external/api", tags=["external-api"])
 
 @router.get("/companies", response_model=list[CompanyResponse], summary="증권사 정보 목록 조회 (리포트 존재 기준)")
-async def get_companies(db: Session = Depends(get_reports_db)):
+@cache_response(ttl=1800, prefix="api")  # 30분 캐시 (증권사 목록은 거의 변하지 않음)
+async def get_companies(request: Request, db: Session = Depends(get_reports_db)):
     """
     tbm_sec_firm_info와 tbl_sec_reports를 JOIN하여
     실제로 리포트가 존재하는 증권사 목록과 리포트 개수를 반환합니다.
@@ -46,8 +48,10 @@ async def get_companies(db: Session = Depends(get_reports_db)):
     ]
 
 @router.get("/boards", response_model=list[BoardResponse], summary="특정 증권사의 게시판 목록 조회")
+@cache_response(ttl=600, prefix="api")  # 10분 캐시 (게시판 목록은 자주 변하지 않음)
 async def get_boards(
     company: Annotated[int, Query(ge=0)],
+    request: Request,
     db: Session = Depends(get_reports_db)
 ):
     """
@@ -244,6 +248,7 @@ def _apply_search_filters(
 
 @router.get("/industry", summary="산업별 리포트 조회 (Public API)")
 @router.get("/industry/", include_in_schema=False)
+@cache_response(ttl=60, prefix="api")  # 60초 캐시 (산업분석 리포트)
 async def get_industry_reports(
     request: Request,
     last_report_id: Annotated[Optional[int], Query(ge=1)] = None,
@@ -315,6 +320,7 @@ async def get_industry_reports(
 
 @router.get("/search", summary="리포트 통합 검색 (Public API)")
 @router.get("/search/", include_in_schema=False)
+@cache_response(ttl=30, prefix="api")  # 30초 캐시 (최근 리포트)
 async def search_reports(
     request: Request,
     report_id: Annotated[Optional[int], Query(ge=1)] = None,
