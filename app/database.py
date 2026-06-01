@@ -2,15 +2,17 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from dotenv import load_dotenv
+from ssh_library.database import BasePostgreSQLManager
 
 load_dotenv()
 
-# --- 공통 PostgreSQL 설정 ---
-PG_USER = os.getenv("POSTGRES_USER", "ssh_reports_hub")
-PG_PASSWORD = os.getenv("POSTGRES_PASSWORD", "")
-PG_HOST = os.getenv("POSTGRES_HOST", "main-postgres")
-PG_PORT = os.getenv("POSTGRES_PORT", "5432")
-PG_DB = os.getenv("POSTGRES_DB", "ssh_reports_hub")
+# --- 공통 PostgreSQL 설정 (ssh-library 기반 중앙 credential 관리) ---
+_pg_manager = BasePostgreSQLManager()
+PG_USER = os.getenv("POSTGRES_USER", _pg_manager.user)
+PG_PASSWORD = os.getenv("POSTGRES_PASSWORD") or _pg_manager.password
+PG_HOST = os.getenv("POSTGRES_HOST", _pg_manager.host)
+PG_PORT = os.getenv("POSTGRES_PORT", _pg_manager.port)
+PG_DB = os.getenv("POSTGRES_DB", _pg_manager.database)
 
 # --- 1. 리포트용 DB 설정 (DB_BACKEND에 따라 결정) ---
 DB_BACKEND = os.getenv("DB_BACKEND", "sqlite").lower()

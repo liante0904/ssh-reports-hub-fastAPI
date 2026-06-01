@@ -8,6 +8,7 @@ services:
       - "8004:8000"
     volumes:
       - .:/app
+      - /home/ubuntu/workspace/lib/ssh-library:/opt/ssh-library:ro
       - /home/ubuntu/sqlite3:/data
       - /home/ubuntu/legacy/telegram-stock-info-bot/send:/screening_files:ro
       - /home/ubuntu/workspace/external.reports-hub/apps/backend/ssh-reports-hub-fastAPI/logs:/logs/scraper:ro
