@@ -14,17 +14,9 @@ PG_HOST = os.getenv("POSTGRES_HOST", _pg_manager.host)
 PG_PORT = os.getenv("POSTGRES_PORT", _pg_manager.port)
 PG_DB = os.getenv("POSTGRES_DB", _pg_manager.database)
 
-# --- 1. 리포트용 DB 설정 (DB_BACKEND에 따라 결정) ---
-DB_BACKEND = os.getenv("DB_BACKEND", "sqlite").lower()
-
-if DB_BACKEND == "postgres":
-    REPORTS_DATABASE_URL = f"postgresql://{PG_USER}:{PG_PASSWORD}@{PG_HOST}:{PG_PORT}/{PG_DB}"
-    reports_connect_args = {}
-else:
-    # SQLite 설정
-    SQLITE_PATH = os.getenv("SQLITE_DB_PATH", "/data/telegram.db")
-    REPORTS_DATABASE_URL = f"sqlite:///{SQLITE_PATH}"
-    reports_connect_args = {"check_same_thread": False}
+# --- 1. 리포트용 DB (PostgreSQL 고정) ---
+REPORTS_DATABASE_URL = f"postgresql://{PG_USER}:{PG_PASSWORD}@{PG_HOST}:{PG_PORT}/{PG_DB}"
+reports_connect_args = {}
 
 reports_engine = create_engine(REPORTS_DATABASE_URL, connect_args=reports_connect_args)
 ReportsSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=reports_engine)

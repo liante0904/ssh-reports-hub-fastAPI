@@ -1,4 +1,3 @@
-import os
 import time
 from sqlalchemy import Column, Integer, String, Boolean, BigInteger, LargeBinary, ForeignKey, Date, DateTime, Float, Numeric, func, Text, UniqueConstraint, Index
 from sqlalchemy.orm import relationship
@@ -9,8 +8,7 @@ class TimestampMixin:
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 # DB 설정에 따라 테이블 이름 결정
-DB_BACKEND = os.getenv("DB_BACKEND", "sqlite").lower()
-MAIN_TABLE_NAME = "tbl_sec_reports" if DB_BACKEND == "postgres" else "data_main_daily_send"
+MAIN_TABLE_NAME = "tbl_sec_reports"
 
 class User(Base):
     __tablename__ = "tbl_sec_reports_telegram_users"

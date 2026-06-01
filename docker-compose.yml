@@ -9,7 +9,6 @@ services:
     volumes:
       - .:/app
       - /home/ubuntu/workspace/lib/ssh-library:/opt/ssh-library:ro
-      - /home/ubuntu/sqlite3:/data
       - /home/ubuntu/legacy/telegram-stock-info-bot/send:/screening_files:ro
       - /home/ubuntu/workspace/external.reports-hub/apps/backend/ssh-reports-hub-fastAPI/logs:/logs/scraper:ro
       - /home/ubuntu/logs:/logs/main:ro
@@ -18,8 +17,6 @@ services:
       - .env
     environment:
       - APP_ENV=${APP_ENV:-prod}
-      - DB_BACKEND=postgres
-      - SQLITE_DB_PATH=/data/telegram.db
       - TZ=Asia/Seoul
     restart: always
     networks:
