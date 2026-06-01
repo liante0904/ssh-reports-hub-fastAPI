@@ -81,11 +81,31 @@ def _cache_key_from_request(request: Request, prefix: str = "api") -> str:
     return f"{prefix}:{digest}"
 
 
-def _serialize(obj: dict) -> bytes:
-    return json.dumps(obj, ensure_ascii=False, default=str).encode("utf-8")
+def _to_json_safe(obj):
+    """Pydantic 모델과 SQLAlchemy 객체를 JSON-safe 타입으로 재귀 변환"""
+    if obj is None:
+        return None
+    if isinstance(obj, (str, int, float, bool)):
+        return obj
+    if hasattr(obj, "model_dump"):
+        # Pydantic v2 모델
+        return obj.model_dump(mode="json")
+    if hasattr(obj, "dict"):
+        # Pydantic v1 모델
+        return obj.dict()
+    if isinstance(obj, dict):
+        return {k: _to_json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple, set)):
+        return [_to_json_safe(item) for item in obj]
+    # SQLAlchemy row 등 그 외는 str 변환
+    return str(obj)
 
 
-def _deserialize(data: bytes) -> dict:
+def _serialize(obj) -> bytes:
+    return json.dumps(_to_json_safe(obj), ensure_ascii=False).encode("utf-8")
+
+
+def _deserialize(data: bytes):
     return json.loads(data.decode("utf-8"))
 
 
