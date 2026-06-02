@@ -100,11 +100,65 @@ jobs:
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
             cd "/home/ubuntu/workspace/external.reports-hub/apps/backend/$REPO_NAME"
-            docker compose pull
-            docker compose up -d --no-build --force-recreate
-            # 대소문자 문제 해결: 이름을 소문자로 변환
-            CONTAINER_NAME=$(echo "$REPO_NAME-prod" | tr '[:upper:]' '[:lower:]')
 
-            RUNNING_SHA="$(docker inspect "$CONTAINER_NAME" --format '{{ index .Config.Labels `org.opencontainers.image.revision` }}')"
+            python3 ~/secrets/generate_env.py "$PWD"
+
+            ACTIVE_TARGET="$(docker exec external-nginx sh -c 'cat /etc/nginx/conf.d/target.inc 2>/dev/null' || true)"
+            CURRENT_ENV="$(docker ps --format '{{.Names}}' | grep '^ssh-reports-hub-fastapi-' | grep -v redis || true)"
+
+            if echo "$ACTIVE_TARGET" | grep -q 'ssh-reports-hub-fastapi-blue'; then
+              TARGET_COLOR="green"
+              OLD_COLOR="blue"
+            elif echo "$ACTIVE_TARGET" | grep -q 'ssh-reports-hub-fastapi-green'; then
+              TARGET_COLOR="blue"
+              OLD_COLOR="green"
+            elif echo "$CURRENT_ENV" | grep -q 'ssh-reports-hub-fastapi-blue'; then
+              TARGET_COLOR="green"
+              OLD_COLOR="blue"
+            elif echo "$CURRENT_ENV" | grep -q 'ssh-reports-hub-fastapi-green'; then
+              TARGET_COLOR="blue"
+              OLD_COLOR="green"
+            else
+              TARGET_COLOR="blue"
+              OLD_COLOR="prod"
+            fi
+
+            echo "Deploy target: $TARGET_COLOR (active: $OLD_COLOR)"
+
+            docker compose pull "ssh-reports-hub-fastapi-$TARGET_COLOR"
+            docker compose up -d --no-build --force-recreate "ssh-reports-hub-fastapi-$TARGET_COLOR"
+
+            echo "Health check..."
+            for i in $(seq 1 12); do
+              if docker exec external-nginx wget -q -O /dev/null "http://ssh-reports-hub-fastapi-$TARGET_COLOR:8000/health"; then
+                echo "Health check passed"
+                break
+              fi
+
+              if [ "$i" -eq 12 ]; then
+                echo "Health check failed. Rolling back new container."
+                docker compose stop "ssh-reports-hub-fastapi-$TARGET_COLOR" || true
+                docker compose rm -f "ssh-reports-hub-fastapi-$TARGET_COLOR" || true
+                exit 1
+              fi
+
+              sleep 5
+            done
+
+            docker exec external-nginx sh -c "printf 'set \$reports_hub_url http://ssh-reports-hub-fastapi-$TARGET_COLOR:8000;\n' > /etc/nginx/conf.d/target.inc"
+            docker exec external-nginx nginx -t
+            docker exec external-nginx nginx -s reload
+            echo "Traffic switched to $TARGET_COLOR"
+
+            sleep 10
+            if [ "$OLD_COLOR" = "blue" ] || [ "$OLD_COLOR" = "green" ]; then
+              docker compose stop "ssh-reports-hub-fastapi-$OLD_COLOR" || true
+              docker compose rm -f "ssh-reports-hub-fastapi-$OLD_COLOR" || true
+            elif [ "$OLD_COLOR" = "prod" ]; then
+              docker stop ssh-reports-hub-fastapi-prod || true
+              docker rm ssh-reports-hub-fastapi-prod || true
+            fi
+
+            RUNNING_SHA="$(docker inspect "ssh-reports-hub-fastapi-$TARGET_COLOR" --format '{{ index .Config.Labels `org.opencontainers.image.revision` }}')"
             echo "Successfully deployed revision: $RUNNING_SHA"
             docker image prune -f

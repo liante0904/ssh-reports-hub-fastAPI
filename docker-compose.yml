@@ -1,11 +1,40 @@
 services:
-  fastapi:
+  ssh-reports-hub-fastapi-blue:
     image: ghcr.io/liante0904/ssh-reports-hub-fastapi:latest
     build: .
-    container_name: ssh-reports-hub-fastapi-prod
+    container_name: ssh-reports-hub-fastapi-blue
     user: "1001:1001"
-    ports:
-      - "8004:8000"
+    expose:
+      - "8000"
+    volumes:
+      - .:/app
+      - /home/ubuntu/workspace/lib/ssh-library:/opt/ssh-library:ro
+      - /home/ubuntu/legacy/telegram-stock-info-bot/send:/screening_files:ro
+      - /home/ubuntu/workspace/external.reports-hub/apps/backend/ssh-reports-hub-fastAPI/logs:/logs/scraper:ro
+      - /home/ubuntu/logs:/logs/main:ro
+    command: ["/opt/venv/bin/uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    env_file:
+      - .env
+    environment:
+      - APP_ENV=${APP_ENV:-prod}
+      - TZ=Asia/Seoul
+      - PYTHONPATH=/opt/ssh-library/src:/opt/venv/lib/python3.12/site-packages
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_DB=${REDIS_DB:-0}
+    restart: always
+    networks:
+      - public-net
+    depends_on:
+      - redis
+
+  ssh-reports-hub-fastapi-green:
+    image: ghcr.io/liante0904/ssh-reports-hub-fastapi:latest
+    build: .
+    container_name: ssh-reports-hub-fastapi-green
+    user: "1001:1001"
+    expose:
+      - "8000"
     volumes:
       - .:/app
       - /home/ubuntu/workspace/lib/ssh-library:/opt/ssh-library:ro
