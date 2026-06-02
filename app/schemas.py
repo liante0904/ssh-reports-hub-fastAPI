@@ -106,34 +106,3 @@ class KeywordResponse(KeywordBase):
 
 class KeywordSyncRequest(BaseModel):
     keywords: List[str]
-
-
-class ScreeningItemResponse(BaseModel):
-    """소외주 발굴 응답 아이템"""
-    model_config = ConfigDict(from_attributes=True)
-
-    stock_code: str
-    stock_name: str
-    market: Optional[str] = None
-    sector: Optional[str] = None
-    current_price: Optional[float] = None
-    change_rate: Optional[float] = None
-    per: Optional[float] = None
-    fwd_per: Optional[float] = None
-    pbr: Optional[float] = None
-    roe: Optional[float] = None
-    market_cap: Optional[float] = None
-    return_1m: Optional[float] = None
-    return_3m: Optional[float] = None
-    return_1y: Optional[float] = None
-    op_growth_1y: Optional[float] = None
-    np_growth_1y: Optional[float] = None
-    op_growth_3m: Optional[float] = None
-    avg_target_price: Optional[float] = None
-    target_upside_pct: Optional[float] = None
-    est_inst_cnt: Optional[int] = None
-    avg_recommendation: Optional[float] = None
-    fn_report_cnt: Optional[int] = None
-    sample_summaries: Optional[str] = None
-    opinions: Optional[str] = None
-    latest_report_date: Optional[str] = None
