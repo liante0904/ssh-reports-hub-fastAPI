@@ -41,6 +41,7 @@ from .routers import (
     favorites,
     external_api,
     reports,
+    screening,
 )
 from .schemas import KeywordCreate, KeywordResponse, KeywordSyncRequest, TelegramUser
 from .security import (
@@ -264,6 +265,7 @@ app.include_router(admin.router)
 app.include_router(reports.router)
 app.include_router(external_api.router)
 app.include_router(favorites.router)
+app.include_router(screening.router)
 
 
 @app.get("/health")
