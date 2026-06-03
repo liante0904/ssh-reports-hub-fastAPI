@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-06-03
+
+### Changed
+
+- `feature/ssh-library-fastapi-integration` 브랜치에서 FastAPI Docker image가 private `ssh-library`를 optional install할 수 있도록 준비했습니다.
+- GitHub Actions는 `SSH_LIBRARY_DEPLOY_KEY`가 있으면 `liante0904/ssh-library`를 `vendor/ssh-library`로 checkout하고 BuildKit named context로 Docker build에 전달합니다.
+- `app/database.py`는 `ssh_library/__init__.py`의 무거운 import를 피하면서, 설치된 package 경로의 `ssh_library/database.py`를 우선 사용하고 기존 `/opt/ssh-library/src` volume 경로를 fallback으로 유지합니다.
+
+### Notes
+
+- 이 변경은 DB 쿼리 라우터 전체를 `SecReportsManager`로 갈아끼우는 작업이 아닙니다.
+- FastAPI는 SQLAlchemy 세션/모델 구조를 유지하고, DB credential/provider 연결만 `ssh-library` package 설치 방식으로 안정화합니다.
+- main 배포 전에는 branch image build와 `/health`, `/reports?limit=1`, `/admin/metrics` smoke를 확인해야 합니다.
+
 ## 2026-05-26
 
 ### Refactored

@@ -1,21 +1,32 @@
 import os
 import sys
+import sysconfig
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from dotenv import load_dotenv
 
-# ssh-library 공통 라이브러리 로드 (__init__.py의 무거운 의존성 회피)
+# ssh-library 공통 DB credential 로드.
+# __init__.py가 scraper/analytics까지 import하므로 database.py만 직접 로드한다.
 import importlib.util
-_LIB_SRC = None
-for _p in ["/opt/ssh-library/src", os.path.expanduser("~/workspace/lib/ssh-library/src")]:
-    if os.path.isdir(_p):
-        _LIB_SRC = _p
+_LIB_DATABASE = None
+_candidate_roots = [
+    sysconfig.get_paths().get("purelib"),
+    "/opt/venv/lib/python3.12/site-packages",
+    "/opt/ssh-library/src",
+    os.path.expanduser("~/workspace/lib/ssh-library/src"),
+]
+for _root in _candidate_roots:
+    if not _root:
+        continue
+    _candidate = os.path.join(_root, "ssh_library", "database.py")
+    if os.path.isfile(_candidate):
+        _LIB_DATABASE = _candidate
         break
 
-if _LIB_SRC:
+if _LIB_DATABASE:
     _spec = importlib.util.spec_from_file_location(
         "ssh_library.database",
-        os.path.join(_LIB_SRC, "ssh_library", "database.py")
+        _LIB_DATABASE,
     )
     _db_module = importlib.util.module_from_spec(_spec)
     _spec.loader.exec_module(_db_module)

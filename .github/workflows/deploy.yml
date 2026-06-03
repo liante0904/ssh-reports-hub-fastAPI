@@ -9,6 +9,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/ssh-reports-hub-fastapi
+  SSH_LIBRARY_ENABLED: ${{ secrets.SSH_LIBRARY_DEPLOY_KEY != '' }}
 
 permissions:
   contents: read
@@ -21,6 +22,17 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Prepare optional vendor context
+        run: mkdir -p vendor/ssh-library
+
+      - name: Checkout private ssh-library
+        if: env.SSH_LIBRARY_ENABLED == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: liante0904/ssh-library
+          ssh-key: ${{ secrets.SSH_LIBRARY_DEPLOY_KEY }}
+          path: vendor/ssh-library
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -67,6 +79,10 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          build-contexts: |
+            ssh_library=./vendor/ssh-library
+          build-args: |
+            INSTALL_SSH_LIBRARY=${{ env.SSH_LIBRARY_ENABLED == 'true' && '1' || '0' }}
           push: true
           platforms: linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
