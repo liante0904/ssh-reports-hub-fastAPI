@@ -23,7 +23,7 @@ services:
     environment:
       - APP_ENV=${APP_ENV:-prod}
       - TZ=Asia/Seoul
-      - PYTHONPATH=/opt/venv/lib/python3.12/site-packages:/opt/ssh-library/src
+      - PYTHONPATH=/opt/venv/lib/python3.12/site-packages:/opt/ssh-library
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_DB=${REDIS_DB:-0}
@@ -57,7 +57,7 @@ services:
     environment:
       - APP_ENV=${APP_ENV:-prod}
       - TZ=Asia/Seoul
-      - PYTHONPATH=/opt/venv/lib/python3.12/site-packages:/opt/ssh-library/src
+      - PYTHONPATH=/opt/venv/lib/python3.12/site-packages:/opt/ssh-library
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_DB=${REDIS_DB:-0}

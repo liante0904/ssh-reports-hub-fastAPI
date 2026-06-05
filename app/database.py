@@ -12,8 +12,8 @@ _LIB_DATABASE = None
 _candidate_roots = [
     sysconfig.get_paths().get("purelib"),
     "/opt/venv/lib/python3.12/site-packages",
-    "/opt/ssh-library/src",
-    os.path.expanduser("~/workspace/lib/ssh-library/src"),
+    "/opt/ssh-library",
+    os.path.expanduser("~/workspace/lib/ssh-library"),
 ]
 for _root in _candidate_roots:
     if not _root:
@@ -37,6 +37,14 @@ else:
 
 load_dotenv()
 
+POSTGRES_ENGINE_KWARGS = {
+    "pool_pre_ping": True,
+    "pool_recycle": 1800,
+    "pool_size": int(os.getenv("DB_POOL_SIZE", "10")),
+    "max_overflow": int(os.getenv("DB_MAX_OVERFLOW", "10")),
+    "pool_timeout": int(os.getenv("DB_POOL_TIMEOUT", "10")),
+}
+
 # --- 공통 PostgreSQL 설정 (ssh-library 기반 중앙 credential 관리) ---
 if BasePostgreSQLManager is not None:
     _pg_manager = BasePostgreSQLManager()
@@ -56,14 +64,14 @@ else:
 REPORTS_DATABASE_URL = f"postgresql://{PG_USER}:{PG_PASSWORD}@{PG_HOST}:{PG_PORT}/{PG_DB}"
 reports_connect_args = {}
 
-reports_engine = create_engine(REPORTS_DATABASE_URL, connect_args=reports_connect_args)
+reports_engine = create_engine(REPORTS_DATABASE_URL, connect_args=reports_connect_args, **POSTGRES_ENGINE_KWARGS)
 ReportsSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=reports_engine)
 
 
 # --- 2. 키워드/유저용 DB 설정 (무조건 PostgreSQL 고정) ---
 KEYWORDS_DATABASE_URL = f"postgresql://{PG_USER}:{PG_PASSWORD}@{PG_HOST}:{PG_PORT}/{PG_DB}"
 
-keywords_engine = create_engine(KEYWORDS_DATABASE_URL)
+keywords_engine = create_engine(KEYWORDS_DATABASE_URL, **POSTGRES_ENGINE_KWARGS)
 KeywordsSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=keywords_engine)
 
 
@@ -72,7 +80,7 @@ class Base(DeclarativeBase):
 
 # --- 의존성 주입 함수들 ---
 
-async def get_db():
+def get_db():
     """기본 db 유지 (하위 호환성용)"""
     db = ReportsSessionLocal()
     try:
@@ -80,7 +88,7 @@ async def get_db():
     finally:
         db.close()
 
-async def get_reports_db():
+def get_reports_db():
     """리포트 전용 DB 세션"""
     db = ReportsSessionLocal()
     try:
@@ -88,7 +96,7 @@ async def get_reports_db():
     finally:
         db.close()
 
-async def get_keywords_db():
+def get_keywords_db():
     """키워드/유저 전용 PostgreSQL 세션"""
     db = KeywordsSessionLocal()
     try:
