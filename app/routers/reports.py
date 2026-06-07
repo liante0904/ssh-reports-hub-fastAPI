@@ -46,6 +46,9 @@ async def get_reports(
         query = query.filter(SecReport.sector.ilike(f"%{sector}%"))
     if stock:
         query = query.filter(SecReport.stock_names.ilike(f'%"{stock}"%'))
-    return query.options(joinedload(SecReport.pdf_archive)).order_by(
+    return query.options(
+        joinedload(SecReport.pdf_archive),
+        joinedload(SecReport.fnguide_summary)
+    ).order_by(
         SecReport.reg_dt.desc(), SecReport.report_id.desc()
     ).offset(offset).limit(limit).all()

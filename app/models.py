@@ -74,11 +74,40 @@ class SecReport(Base):
     stock_names = Column(String, default="[]")  # JSON array of stock names
     sector = Column(String, default="")         # industry sector
     
+    # FnGuide 요약 리포트 매칭 ID
+    fnguide_summary_id = Column(BigInteger, ForeignKey("tbl_fnguide_report_summaries.summary_id", ondelete="SET NULL"), nullable=True)
+    
     # 발송 이력과의 관계
     sent_histories = relationship("ReportSentHistory", back_populates="report")
 
     # PDF 아카이브와의 관계 (1:1, report_id 기준)
     pdf_archive = relationship("PdfArchive", uselist=False, back_populates="report", foreign_keys="PdfArchive.report_id")
+
+    # FnGuide 요약 리포트와의 관계 (N:1, fnguide_summary_id 기준)
+    fnguide_summary = relationship("FnGuideReportSummary", foreign_keys=[fnguide_summary_id])
+
+
+class FnGuideReportSummary(Base, TimestampMixin):
+    """FnGuide에서 수집한 종목별 요약 리포트 엔터티"""
+    __tablename__ = "tbl_fnguide_report_summaries"
+
+    summary_id = Column(BigInteger, primary_key=True, index=True)
+    source_page_url = Column(String, nullable=False, default="")
+    report_date = Column(String, index=True, nullable=False, default="")
+    company_name = Column(String, index=True, nullable=False)
+    company_code = Column(String, index=True, nullable=True)
+    report_title = Column(String, nullable=False)
+    summary_text = Column(Text, nullable=True)
+    opinion = Column(String, nullable=True)
+    target_price = Column(String, nullable=True)
+    prev_close = Column(String, nullable=True)
+    provider = Column(String, nullable=True)
+    author = Column(String, nullable=True)
+    article_url = Column(String, nullable=True)
+    pdf_url = Column(String, nullable=True)
+    report_key = Column(String, unique=True, index=True, nullable=False)
+    item_rank = Column(Integer, nullable=True)
+    sync_status = Column(Integer, default=0)
 
 
 class PdfArchive(Base):

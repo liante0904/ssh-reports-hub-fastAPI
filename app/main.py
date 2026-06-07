@@ -41,6 +41,7 @@ from .routers import (
     favorites,
     external_api,
     reports,
+    fnguide_reports,
 )
 from .schemas import KeywordCreate, KeywordResponse, KeywordSyncRequest, TelegramUser
 from .security import (
@@ -79,17 +80,20 @@ def _ensure_tags_columns(engine) -> None:
             "tags": "tags JSONB DEFAULT '[]'::jsonb",
             "stock_names": "stock_names JSONB DEFAULT '[]'::jsonb",
             "sector": "sector TEXT DEFAULT ''",
+            "fnguide_summary_id": "fnguide_summary_id BIGINT DEFAULT NULL",
         }
         indexes = [
             "CREATE INDEX IF NOT EXISTS idx_tb_sec_reports_tags ON tbl_sec_reports USING gin (tags)",
             "CREATE INDEX IF NOT EXISTS idx_tb_sec_reports_stock_names ON tbl_sec_reports USING gin (stock_names)",
             "CREATE INDEX IF NOT EXISTS idx_tb_sec_reports_sector ON tbl_sec_reports USING btree (sector)",
+            "CREATE INDEX IF NOT EXISTS idx_tb_sec_reports_fnguide_summary_id ON tbl_sec_reports (fnguide_summary_id)",
         ]
     else:
         migrations = {
             "tags": "tags TEXT DEFAULT '[]'",
             "stock_names": "stock_names TEXT DEFAULT '[]'",
             "sector": "sector TEXT DEFAULT ''",
+            "fnguide_summary_id": "fnguide_summary_id INTEGER DEFAULT NULL",
         }
         indexes = []
 
@@ -264,6 +268,7 @@ app.include_router(admin.router)
 app.include_router(reports.router)
 app.include_router(external_api.router)
 app.include_router(favorites.router)
+app.include_router(fnguide_reports.router)
 
 
 @app.get("/health")

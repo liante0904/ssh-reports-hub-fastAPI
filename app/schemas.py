@@ -33,6 +33,35 @@ class PdfArchiveResponse(BaseModel):
     last_accessed_at: Optional[datetime] = None
 
 
+class FnGuideReportSummaryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    summary_id: int
+    source_page_url: str
+    report_date: str
+    company_name: str
+    company_code: Optional[str] = None
+    report_title: str
+    summary_text: Optional[str] = None
+    opinion: Optional[str] = None
+    target_price: Optional[str] = None
+    prev_close: Optional[str] = None
+    provider: Optional[str] = None
+    author: Optional[str] = None
+    article_url: Optional[str] = None
+    pdf_url: Optional[str] = None
+    report_key: str
+    item_rank: Optional[int] = None
+    sync_status: Optional[int] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class FnGuideReportDateResponse(BaseModel):
+    report_date: str
+    report_count: int
+
+
 class SecReportResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -49,6 +78,7 @@ class SecReportResponse(BaseModel):
     stock_names: Optional[list[str]] = None
     sector: Optional[str] = None
     pdf_archive: Optional[PdfArchiveResponse] = None
+    fnguide_summary: Optional[FnGuideReportSummaryResponse] = None
 
     @field_validator("tags", "stock_names", mode="before")
     @classmethod

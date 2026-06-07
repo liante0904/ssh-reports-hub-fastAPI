@@ -440,6 +440,30 @@ async def get_firm_health(
     }
 
 
+@router.post("/fnguide/match", summary="FnGuide 요약 리포트 매칭 처리 실행")
+async def trigger_fnguide_match(
+    limit: int = Query(200, ge=1, le=1000, description="처리할 리포트 수"),
+    dry_run: bool = Query(False, description="실제 DB 반영 여부 (True 시 로그만 반환)"),
+    current_user: User = Depends(require_admin),
+    reports_db: Session = Depends(get_reports_db),
+):
+    """
+    아직 FnGuide 요약 리포트와 매칭되지 않은 최신 레포트들에 대해 유사도 매칭을 실행하고,
+    fnguide_summary_id를 갱신합니다.
+    """
+    from ..services.fnguide_matcher import FnGuideMatcher
+    try:
+        matcher = FnGuideMatcher(reports_db)
+        result = matcher.match_pending_reports(limit=limit, dry_run=dry_run)
+        return result
+    except Exception as e:
+        logger.error(f"FnGuide matching failed: {e}")
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+
 # ──────────────────────────────────────────────
 #  로그 브라우저 (/admin/logs, /admin/logs/view)
 # ──────────────────────────────────────────────

@@ -177,6 +177,27 @@ def _report_to_api_item(report: SecReport, is_direct: bool = None) -> dict:
         }
     else:
         item["pdf_archive"] = None
+
+    # FnGuide 요약 정보 추가 (LEFT JOIN 결과물)
+    fnguide = report.fnguide_summary
+    if fnguide:
+        item["fnguide_summary"] = {
+            "summary_id": fnguide.summary_id,
+            "report_title": fnguide.report_title,
+            "report_date": fnguide.report_date,
+            "company_name": fnguide.company_name,
+            "company_code": fnguide.company_code,
+            "summary_text": fnguide.summary_text,
+            "opinion": fnguide.opinion,
+            "target_price": fnguide.target_price,
+            "prev_close": fnguide.prev_close,
+            "provider": fnguide.provider,
+            "author": fnguide.author,
+            "pdf_url": fnguide.pdf_url,
+        }
+    else:
+        item["fnguide_summary"] = None
+
     return item
 
 
@@ -308,13 +329,69 @@ async def get_industry_reports(
         )
     )
 
-    query = query.options(joinedload(SecReport.pdf_archive))
+    query = query.options(joinedload(SecReport.pdf_archive), joinedload(SecReport.fnguide_summary))
 
     rows, has_more = _paginate_query(
         query.order_by(SecReport.report_id.desc()),
         limit,
         offset,
     )
+    return _collection_response(request, rows, limit, offset, has_more)
+
+
+@router.get("/global", summary="글로벌 리포트 조회 (Public API)")
+@router.get("/global/", include_in_schema=False)
+@cache_response(ttl=60, prefix="api")  # 60초 캐시 (글로벌 리포트)
+async def get_global_reports(
+    request: Request,
+    report_id: Annotated[Optional[int], Query(ge=1)] = None,
+    writer: Annotated[Optional[str], Query(min_length=1, max_length=100)] = None,
+    title: Annotated[Optional[str], Query(min_length=1, max_length=100)] = None,
+    company: Annotated[Optional[int], Query(ge=0)] = None,
+    board: Annotated[Optional[int], Query(ge=0)] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    db: Session = Depends(get_reports_db),
+):
+    """
+    글로벌(해외주식/글로벌 시장) 관련 리포트 목록을 독립적으로 조회합니다.
+    국내 종목코드나 국내 시장 관련 키워드가 제목에 포함된 리포트는 제외됩니다.
+    """
+    query = db.query(SecReport, SecFirmInfo.is_direct_link).outerjoin(
+        SecFirmInfo, SecReport.sec_firm_order == SecFirmInfo.sec_firm_order
+    ).filter(
+        SecReport.main_ch_send_yn == "Y",
+        SecReport.mkt_tp != "KR",
+    )
+
+    # PostgreSQL 전용: 국내 종목(네오팜 등) 및 국내 퀀트 전략 리포트 필터링 제외
+    if db.get_bind().dialect.name == "postgresql":
+        query = query.filter(
+            # 국내 종목코드 및 티커 형식 (예: 092730.KQ, 005930.KS, 6자리 숫자 종목코드) 제외
+            SecReport.article_title.op("!~*")(r"\(\d{5,6}\.K[QS]\)"),
+            SecReport.article_title.op("!~*")(r"\b\d{5,6}\b"),
+            # 국내 시장 및 퀀트 전략 관련 키워드(코스피, 코스닥, KOSPI, KOSDAQ, 퀀트, Quant, MP) 제외
+            SecReport.article_title.op("!~*")(r"코스피|코스닥|KOSPI|KOSDAQ|퀀트|Quant|MP"),
+        )
+
+    if report_id is not None:
+        query = query.filter(SecReport.report_id == report_id)
+
+    query = _apply_search_filters(query, writer, title, "global", company, board)
+    query = query.options(joinedload(SecReport.pdf_archive), joinedload(SecReport.fnguide_summary))
+
+    if report_id is not None:
+        query = query.order_by(SecReport.report_id.desc())
+    else:
+        query = query.order_by(
+            SecReport.reg_dt.desc(),
+            SecReport.save_time.desc(),
+            SecReport.report_id.desc(),
+            SecReport.sec_firm_order,
+            SecReport.article_board_order,
+        )
+
+    rows, has_more = _paginate_query(query, limit, offset)
     return _collection_response(request, rows, limit, offset, has_more)
 
 
@@ -352,7 +429,7 @@ async def search_reports(
     if report_id is not None:
         query = query.filter(SecReport.report_id == report_id)
     query = _apply_search_filters(query, writer, title, mkt_tp, company, board, tag, sector, stock)
-    query = query.options(joinedload(SecReport.pdf_archive))
+    query = query.options(joinedload(SecReport.pdf_archive), joinedload(SecReport.fnguide_summary))
 
     # AI 요약이 있는 리포트만 필터링
     if has_summary:
