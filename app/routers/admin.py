@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import psutil
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Header
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
@@ -462,6 +462,36 @@ async def trigger_fnguide_match(
             "status": "error",
             "message": str(e)
         }
+
+
+@router.post("/fnguide/match-internal", summary="FnGuide 요약 리포트 매칭 처리 실행 (내부 스케줄러 전용)")
+async def trigger_fnguide_match_internal(
+    limit: int = Query(200, ge=1, le=1000, description="처리할 리포트 수"),
+    dry_run: bool = Query(False, description="실제 DB 반영 여부 (True 시 로그만 반환)"),
+    x_internal_token: str | None = Header(None, alias="X-Internal-Token"),
+    reports_db: Session = Depends(get_reports_db),
+    settings: Settings = Depends(get_settings_dep),
+):
+    """
+    내부 스케줄러(스크래퍼)에서 호출하는 FnGuide 요약 매칭 API입니다.
+    X-Internal-Token 헤더가 settings.JWT_SECRET_KEY와 일치해야 실행을 허용합니다.
+    """
+    from ..exceptions import PermissionDeniedException
+    if not x_internal_token or x_internal_token != settings.JWT_SECRET_KEY:
+        raise PermissionDeniedException("Invalid internal token")
+        
+    from ..services.fnguide_matcher import FnGuideMatcher
+    try:
+        matcher = FnGuideMatcher(reports_db)
+        result = matcher.match_pending_reports(limit=limit, dry_run=dry_run)
+        return result
+    except Exception as e:
+        logger.error(f"FnGuide internal matching failed: {e}")
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
 
 
 # ──────────────────────────────────────────────

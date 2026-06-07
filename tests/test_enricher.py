@@ -156,7 +156,7 @@ class TestTagExtraction:
         """종목명(코드) 패턴 추출"""
         import sys, os
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'scrapers', 'ssh-reports-scraper'))
-        from models.TagExtractionManager import TagExtractionManager
+        from enricher.tag_extractor import TagExtractionManager
         extractor = TagExtractionManager()
         result = await extractor.extract_tags("삼성전자(005930) : 실적 전망 상향", "LS증권")
         assert "삼성전자" in result["stock_names"]
@@ -166,7 +166,7 @@ class TestTagExtraction:
         """반도체 산업 분류"""
         import sys, os
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'scrapers', 'ssh-reports-scraper'))
-        from models.TagExtractionManager import TagExtractionManager
+        from enricher.tag_extractor import TagExtractionManager
         extractor = TagExtractionManager()
         result = await extractor.extract_tags("[2H26 산업 전망] 반도체; No 'Memory', No 'AI'", "신한증권")
         assert result["sector"] == "반도체"
@@ -176,7 +176,7 @@ class TestTagExtraction:
         """AI 태그 추출"""
         import sys, os
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'scrapers', 'ssh-reports-scraper'))
-        from models.TagExtractionManager import TagExtractionManager
+        from enricher.tag_extractor import TagExtractionManager
         extractor = TagExtractionManager()
         result = await extractor.extract_tags("AI 반도체 시대, HBM 수요 폭발", "KB증권")
         assert "AI" in result["tags"]
@@ -187,7 +187,7 @@ class TestTagExtraction:
         """목표주가 상향 액션 추출"""
         import sys, os
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'scrapers', 'ssh-reports-scraper'))
-        from models.TagExtractionManager import TagExtractionManager
+        from enricher.tag_extractor import TagExtractionManager
         extractor = TagExtractionManager()
         result = await extractor.extract_tags("삼성SDI - 목표주가 800,000원으로 상향", "메리츠증권")
         assert "목표주가 상향" in result["tags"]
@@ -197,7 +197,7 @@ class TestTagExtraction:
         """일일 브리프는 태그 적게 추출"""
         import sys, os
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'scrapers', 'ssh-reports-scraper'))
-        from models.TagExtractionManager import TagExtractionManager
+        from enricher.tag_extractor import TagExtractionManager
         extractor = TagExtractionManager()
         result = await extractor.extract_tags("IBKS Morning Brief_230414", "IBK투자증권")
         # morning brief는 일반적으로 종목/산업 태그가 없음
@@ -208,7 +208,7 @@ class TestTagExtraction:
         """응답 구조 완전성"""
         import sys, os
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'scrapers', 'ssh-reports-scraper'))
-        from models.TagExtractionManager import TagExtractionManager
+        from enricher.tag_extractor import TagExtractionManager
         extractor = TagExtractionManager()
         result = await extractor.extract_tags("테스트 제목", "테스트증권")
         assert "tags" in result
