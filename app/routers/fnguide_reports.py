@@ -3,7 +3,7 @@ import logging
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_reports_db
 from ..models import FnGuideReportSummary
@@ -60,7 +60,8 @@ async def get_report_summaries(
     """
     query = _apply_report_filters(db.query(FnGuideReportSummary), q, provider, author, report_date)
     return (
-        query.order_by(
+        query.options(selectinload(FnGuideReportSummary.sec_reports))
+        .order_by(
             FnGuideReportSummary.report_date.desc(),
             FnGuideReportSummary.summary_id.desc(),
         )

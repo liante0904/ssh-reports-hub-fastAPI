@@ -33,6 +33,16 @@ class PdfArchiveResponse(BaseModel):
     last_accessed_at: Optional[datetime] = None
 
 
+class FnGuideMatchedReportResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    report_id: int
+    firm_nm: str
+    article_title: str
+    pdf_url: Optional[str] = None
+    download_url: Optional[str] = None
+    telegram_url: Optional[str] = None
+
+
 class FnGuideReportSummaryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -55,6 +65,7 @@ class FnGuideReportSummaryResponse(BaseModel):
     sync_status: Optional[int] = None
     created_at: datetime
     updated_at: datetime
+    sec_reports: Optional[list[FnGuideMatchedReportResponse]] = []
 
 
 class FnGuideReportDateResponse(BaseModel):

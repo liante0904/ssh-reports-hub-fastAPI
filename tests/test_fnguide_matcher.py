@@ -200,3 +200,54 @@ async def test_trigger_fnguide_match_api(client, db_session):
     # 실제 DB에 반영되었는지 확인
     report_after_real = db_session.query(SecReport).filter_by(report_id=10).first()
     assert report_after_real.fnguide_summary_id == 202
+
+
+@pytest.mark.anyio
+async def test_get_report_summaries_with_matched_sec_reports(client, db_session):
+    """
+    /pub/api/fnguide/report-summaries API 조회 시,
+    매칭된 sec_reports가 정상적으로 prefetch되어 응답 스키마에 포함되는지 검증합니다.
+    """
+    # 1. 요약 리포트 및 당사 리포트 삽입
+    fnguide_summary = FnGuideReportSummary(
+        summary_id=303,
+        company_name="LG에너지솔루션",
+        report_title="LG에너지솔루션 배터리 실적 기대",
+        report_date="2026-06-05",
+        provider="메리츠증권",
+        author="이철희",
+        summary_text="LG엔솔 하반기 턴어라운드",
+        report_key="key_303",
+    )
+    db_session.add(fnguide_summary)
+    db_session.commit()
+
+    sec_report = SecReport(
+        report_id=30,
+        sec_firm_order=4,
+        article_board_order=0,
+        firm_nm="메리츠증권",
+        article_title="LG엔솔 실적 분석",
+        reg_dt="20260605",
+        main_ch_send_yn="Y",
+        writer="이철희",
+        stock_names=json.dumps(["LG에너지솔루션"]),
+        fnguide_summary_id=303,  # 수동 매핑
+    )
+    db_session.add(sec_report)
+    db_session.commit()
+
+    # 2. API 호출
+    response = await client.get("/pub/api/fnguide/report-summaries?report_date=2026-06-05")
+    assert response.status_code == 200
+    data = response.json()
+    
+    # 3. 매칭된 sec_reports가 포함되었는지 데이터 검증
+    assert len(data) >= 1
+    target_summary = next((item for item in data if item["summary_id"] == 303), None)
+    assert target_summary is not None
+    assert "sec_reports" in target_summary
+    assert len(target_summary["sec_reports"]) == 1
+    assert target_summary["sec_reports"][0]["report_id"] == 30
+    assert target_summary["sec_reports"][0]["firm_nm"] == "메리츠증권"
+    assert target_summary["sec_reports"][0]["article_title"] == "LG엔솔 실적 분석"

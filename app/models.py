@@ -84,7 +84,7 @@ class SecReport(Base):
     pdf_archive = relationship("PdfArchive", uselist=False, back_populates="report", foreign_keys="PdfArchive.report_id")
 
     # FnGuide 요약 리포트와의 관계 (N:1, fnguide_summary_id 기준)
-    fnguide_summary = relationship("FnGuideReportSummary", foreign_keys=[fnguide_summary_id])
+    fnguide_summary = relationship("FnGuideReportSummary", foreign_keys=[fnguide_summary_id], back_populates="sec_reports")
 
 
 class FnGuideReportSummary(Base, TimestampMixin):
@@ -108,6 +108,9 @@ class FnGuideReportSummary(Base, TimestampMixin):
     report_key = Column(String, unique=True, index=True, nullable=False)
     item_rank = Column(Integer, nullable=True)
     sync_status = Column(Integer, default=0)
+
+    # SecReport 들과의 관계 (1:N 역방향 관계)
+    sec_reports = relationship("SecReport", foreign_keys="[SecReport.fnguide_summary_id]", back_populates="fnguide_summary")
 
 
 class PdfArchive(Base):
