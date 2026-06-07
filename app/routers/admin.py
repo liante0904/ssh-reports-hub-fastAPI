@@ -88,6 +88,7 @@ async def get_summarize_command(
 @router.post("/reports/{report_id}/summarize")
 async def trigger_summarize(
     report_id: int,
+    engine: str = Query("deepseek", description="요약에 사용할 엔진 ('deepseek' 또는 'ag')"),
     current_user: User = Depends(require_admin),
     reports_db: Session = Depends(get_reports_db),
     keywords_db: Session = Depends(get_keywords_db),
@@ -95,8 +96,8 @@ async def trigger_summarize(
     """
     리포트 AI 요약을 실행하고 DB를 업데이트합니다.
 
-    - dry_run=False로 설정되어야 실제 DeepSeek API 호출이 이루어집니다.
-    - 현재는 dry_run=True이며, curl 명령어를 반환합니다.
+    - engine이 'ag'인 경우 Antigravity(Gemini REST API) 요약을 수행합니다.
+    - engine이 'deepseek'인 경우 DeepSeek 요약을 수행합니다.
     """
     from ..database import keywords_engine, reports_engine
     from sqlalchemy import text
@@ -124,9 +125,14 @@ async def trigger_summarize(
     if not pdf_url:
         raise ValidationException("No PDF URL available for this report")
 
-    # DeepSeek 요약 실행 (dry_run=False → PDF 다운로드 → 텍스트 추출 → DeepSeek API → DB 저장)
-    config = DeepSeekConfig(dry_run=False)
-    manager = DeepSeekManager(config)
+    # 요약 엔진 분기 처리
+    if engine == "ag":
+        from ..antigravity_manager import AntigravityConfig, AntigravityManager
+        config = AntigravityConfig(dry_run=False)
+        manager = AntigravityManager(config)
+    else:
+        config = DeepSeekConfig(dry_run=False)
+        manager = DeepSeekManager(config)
 
     result = await manager.summarize(
         pdf_url=pdf_url,
@@ -477,7 +483,7 @@ async def trigger_fnguide_match_internal(
     X-Internal-Token 헤더가 settings.JWT_SECRET_KEY와 일치해야 실행을 허용합니다.
     """
     from ..exceptions import PermissionDeniedException
-    if not x_internal_token or x_internal_token != settings.JWT_SECRET_KEY:
+    if not x_internal_token or x_internal_token != settings.jwt_secret_key:
         raise PermissionDeniedException("Invalid internal token")
         
     from ..services.fnguide_matcher import FnGuideMatcher

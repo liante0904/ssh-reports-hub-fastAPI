@@ -202,6 +202,69 @@ async def test_trigger_fnguide_match_api(client, db_session):
     assert report_after_real.fnguide_summary_id == 202
 
 
+
+
+@pytest.mark.anyio
+async def test_trigger_fnguide_match_internal_api(client, db_session):
+    """
+    내부 전용 API /admin/fnguide/match-internal 의 동작 여부,
+    보안 토큰(X-Internal-Token) 검증 및 정상 매칭 여부 검증
+    """
+    # 1. 테스트용 레포트 및 요약 데이터 추가
+    fnguide_summary = FnGuideReportSummary(
+        summary_id=250,
+        company_name="삼성전자",
+        report_title="삼성전자 2분기 어닝 서프라이즈",
+        report_date="2026-06-05",
+        provider="LS증권",
+        author="김철수",
+        summary_text="반도체 사업부 흑자 규모 대폭 확대",
+        report_key="key_250",
+    )
+    sec_report = SecReport(
+        report_id=25,
+        sec_firm_order=3,
+        article_board_order=0,
+        firm_nm="LS증권",
+        article_title="삼성전자 2분기 실적 서프라이즈 예고",
+        reg_dt="20260605",
+        main_ch_send_yn="Y",
+        writer="김철수",
+        stock_names=json.dumps(["삼성전자"]),
+    )
+    db_session.add_all([fnguide_summary, sec_report])
+    db_session.commit()
+
+    # 가짜 토큰 및 토큰 누락 케이스 테스트 (403 Forbidden)
+    response_no_token = await client.post("/admin/fnguide/match-internal?limit=10")
+    assert response_no_token.status_code == 403
+
+    response_bad_token = await client.post(
+        "/admin/fnguide/match-internal?limit=10",
+        headers={"X-Internal-Token": "invalid_secret_key_1234"}
+    )
+    assert response_bad_token.status_code == 403
+
+    # 올바른 토큰 케이스 테스트 (settings.JWT_SECRET_KEY 검증)
+    from app.settings import get_settings
+    settings = get_settings()
+    correct_token = settings.jwt_secret_key
+
+    response_success = await client.post(
+        "/admin/fnguide/match-internal?limit=10&dry_run=false",
+        headers={"X-Internal-Token": correct_token}
+    )
+    assert response_success.status_code == 200
+    data = response_success.json()
+    assert data["status"] == "success"
+    assert data["matched_count"] == 1
+
+    # 실제 DB에 반영되었는지 검증
+    db_session.expire_all()
+    matched_report = db_session.query(SecReport).filter_by(report_id=25).first()
+    assert matched_report.fnguide_summary_id == 250
+
+
 @pytest.mark.anyio
 async def test_get_report_summaries_with_matched_sec_reports(client, db_session):
     """
