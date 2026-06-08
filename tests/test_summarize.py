@@ -17,8 +17,8 @@ from app.main import app
 from app.dependencies import get_user_from_token
 from app.models import SecReport, User
 from app.settings import Settings
-import app.antigravity_manager as _ag_mgr
-import app.deepseek_manager as _ds_mgr
+import ssh_library.antigravity_manager as _ag_mgr
+import ssh_library.deepseek_manager as _ds_mgr
 
 
 
@@ -137,7 +137,7 @@ async def admin_client():
 
 
 @pytest.mark.anyio
-@patch("app.deepseek_manager.DeepSeekManager.summarize", new_callable=AsyncMock)
+@patch("ssh_library.deepseek_manager.DeepSeekManager.summarize", new_callable=AsyncMock)
 async def test_trigger_summarize_deepseek_success(mock_summarize, admin_client):
     """DeepSeek 엔진을 사용하여 요약을 정상 수행 및 DB 반영 검증"""
     mock_summarize.return_value = {
@@ -165,7 +165,7 @@ async def test_trigger_summarize_deepseek_success(mock_summarize, admin_client):
 
 
 @pytest.mark.anyio
-@patch("app.antigravity_manager.AntigravityManager.summarize", new_callable=AsyncMock)
+@patch("ssh_library.antigravity_manager.AntigravityManager.summarize", new_callable=AsyncMock)
 async def test_trigger_summarize_antigravity_success(mock_summarize, admin_client):
     """Antigravity (Gemini) 엔진을 사용하여 요약을 정상 수행 및 DB 반영 검증"""
     mock_summarize.return_value = {

@@ -16,7 +16,7 @@ from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from ..database import get_keywords_db, get_reports_db
-from ..deepseek_manager import DeepSeekConfig, DeepSeekManager
+from ssh_library import DeepSeekConfig, DeepSeekManager
 from ..dependencies import get_settings_dep, get_user_from_token
 from ..exceptions import (
     FileTooLargeException,
@@ -129,7 +129,7 @@ async def trigger_summarize(
 
     # 요약 엔진 분기 처리
     if engine == "ag":
-        from ..antigravity_manager import AntigravityConfig, AntigravityManager
+        from ssh_library import AntigravityConfig, AntigravityManager
         config = AntigravityConfig(dry_run=False)
         manager = AntigravityManager(config)
     else:
