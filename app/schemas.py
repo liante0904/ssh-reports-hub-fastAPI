@@ -156,3 +156,16 @@ class KeywordResponse(KeywordBase):
 
 class KeywordSyncRequest(BaseModel):
     keywords: List[str]
+
+
+class ReportNotificationResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    report_id: int
+    article_title: str
+    firm_nm: Optional[str] = None
+    summary_model: Optional[str] = None
+    message: str
+    created_at: datetime
+

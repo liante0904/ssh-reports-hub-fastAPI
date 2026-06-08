@@ -182,3 +182,14 @@ class ReportSentHistory(Base):
     sent_at = Column(DateTime(timezone=True), server_default=func.now())
     
     report = relationship("SecReport", back_populates="sent_histories")
+
+
+class ReportNotification(Base, TimestampMixin):
+    __tablename__ = "tbl_sec_reports_notifications"
+    id = Column(Integer, primary_key=True, index=True)
+    report_id = Column(BigInteger, ForeignKey(f"tbl_sec_reports.report_id", ondelete="CASCADE"), nullable=False)
+    article_title = Column(String, nullable=False)
+    firm_nm = Column(String, nullable=True)
+    summary_model = Column(String, nullable=True)  # deepseek or gemini
+    message = Column(Text, nullable=False)
+
