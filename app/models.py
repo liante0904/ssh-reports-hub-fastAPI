@@ -74,6 +74,14 @@ class SecReport(Base):
     stock_names = Column(String, default="[]")  # JSON array of stock names
     sector = Column(String, default="")         # industry sector
     
+    # ── 프리미엄 5대 속성 컬럼 내재화 ──────────────────
+    target_price = Column(Numeric, nullable=True)  # 목표주가
+    rating = Column(String, nullable=True)         # 투자의견 (BUY, HOLD 등)
+    revision_type = Column(String, nullable=True)  # 목표가 변동 성격 (UPGRADE, DOWNGRADE 등)
+    report_type = Column(String, nullable=True)    # 리포트 분류 (COMPANY, INDUSTRY 등)
+    stock_tickers = Column(String, default="[]")   # 6자리 표준 종목코드 JSON 배열
+    # ──────────────────────────────────────────────────
+    
     # FnGuide 요약 리포트 매칭 ID
     fnguide_summary_id = Column(BigInteger, ForeignKey("tbl_fnguide_report_summaries.summary_id", ondelete="SET NULL"), nullable=True)
     

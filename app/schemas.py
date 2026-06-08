@@ -88,10 +88,19 @@ class SecReportResponse(BaseModel):
     tags: Optional[list[str]] = None
     stock_names: Optional[list[str]] = None
     sector: Optional[str] = None
+    
+    # ── 프리미엄 5대 속성 스키마 선언 ──────────────────
+    target_price: Optional[float] = None          # 목표주가
+    rating: Optional[str] = None                  # 투자의견 (BUY, HOLD 등)
+    revision_type: Optional[str] = None           # 목표가 변동 성격 (UPGRADE, DOWNGRADE 등)
+    report_type: Optional[str] = None             # 리포트 분류 (COMPANY, INDUSTRY 등)
+    stock_tickers: Optional[list[str]] = None     # 6자리 표준 종목코드 리스트
+    # ──────────────────────────────────────────────────
+    
     pdf_archive: Optional[PdfArchiveResponse] = None
     fnguide_summary: Optional[FnGuideReportSummaryResponse] = None
 
-    @field_validator("tags", "stock_names", mode="before")
+    @field_validator("tags", "stock_names", "stock_tickers", mode="before")
     @classmethod
     def parse_json_array(cls, v):
         """DB에서 문자열로 저장된 JSON 배열을 list로 변환"""
