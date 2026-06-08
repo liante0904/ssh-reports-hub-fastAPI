@@ -143,17 +143,19 @@ class FnGuideMatcher:
     def __init__(self, db: Session):
         self.db = db
 
-    def match_pending_reports(self, limit: int = 200, dry_run: bool = False) -> Dict[str, Any]:
+    def match_pending_reports(self, limit: int = 200, max_report_id: Optional[int] = None, dry_run: bool = False) -> Dict[str, Any]:
         """
         아직 fnguide_summary_id가 할당되지 않은 최근 tbl_sec_reports 행들을 조회하여,
         tbl_fnguide_report_summaries와 영리하게 매칭시키고 업데이트합니다.
         """
         # 1. fnguide_summary_id가 비어있는 우리 리포트 목록 조회
         # 최근 리포트 순으로 limit 개 조회
+        query = self.db.query(SecReport).filter(SecReport.fnguide_summary_id.is_(None))
+        if max_report_id is not None:
+            query = query.filter(SecReport.report_id < max_report_id)
+
         reports = (
-            self.db.query(SecReport)
-            .filter(SecReport.fnguide_summary_id.is_(None))
-            .order_by(SecReport.report_id.desc())
+            query.order_by(SecReport.report_id.desc())
             .limit(limit)
             .all()
         )
@@ -164,6 +166,7 @@ class FnGuideMatcher:
                 "message": "매칭 대기 중인 리포트가 없습니다.",
                 "matched_count": 0,
                 "total_processed": 0,
+                "min_report_id": None,
                 "updates": []
             }
 
@@ -281,13 +284,17 @@ class FnGuideMatcher:
                     "message": f"DB 저장 중 에러 발생: {str(e)}",
                     "matched_count": 0,
                     "total_processed": len(reports),
+                    "min_report_id": None,
                     "updates": []
                 }
+
+        min_report_id = min([r.report_id for r in reports]) if reports else None
 
         return {
             "status": "success",
             "message": f"{matched_count}개 리포트 매칭 완료" + (" (Dry-Run)" if dry_run else ""),
             "matched_count": matched_count,
             "total_processed": len(reports),
+            "min_report_id": min_report_id,
             "updates": updates_log
         }
