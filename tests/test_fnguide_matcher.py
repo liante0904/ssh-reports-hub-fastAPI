@@ -314,3 +314,56 @@ async def test_get_report_summaries_with_matched_sec_reports(client, db_session)
     assert target_summary["sec_reports"][0]["report_id"] == 30
     assert target_summary["sec_reports"][0]["firm_nm"] == "메리츠증권"
     assert target_summary["sec_reports"][0]["article_title"] == "LG엔솔 실적 분석"
+
+
+def test_parse_date_and_dots_matching(db_session):
+    """
+    1. YYYY.MM.DD 포맷의 날짜가 올바르게 파싱되는지 검증
+    2. 마침표(.) 형식의 날짜를 가진 FnGuide 요약과 YYYYMMDD 형태의 당사 리포트가 성공적으로 매칭되는지 검증
+    """
+    from app.services.fnguide_matcher import parse_date, FnGuideMatcher
+    import datetime
+
+    # 1. parse_date 단위 테스트
+    assert parse_date("20260608") == datetime.date(2026, 6, 8)
+    assert parse_date("2026-06-08") == datetime.date(2026, 6, 8)
+    assert parse_date("2026.06.08") == datetime.date(2026, 6, 8)
+
+    # 2. 마침표 날짜 매칭 통합 테스트
+    fnguide_summary = FnGuideReportSummary(
+        summary_id=505,
+        company_name="현대자동차",
+        report_title="현대자동차 실적 개선 지속",
+        report_date="2026.06.08",  # 실제 운영 환경의 마침표 형태
+        provider="하나증권",
+        author="김철수",
+        summary_text="현대차 실적 맑음",
+        report_key="key_505",
+    )
+    db_session.add(fnguide_summary)
+
+    sec_report = SecReport(
+        report_id=50,
+        sec_firm_order=2,
+        article_board_order=0,
+        firm_nm="하나투자증권",  # 정규화되어 '하나'로 매칭 예정
+        article_title="현대차 실적 분석 및 전망",
+        reg_dt="20260608",  # YYYYMMDD 형태
+        main_ch_send_yn="Y",
+        writer="김철수",
+        stock_names=json.dumps(["현대자동차"]),
+    )
+    db_session.add(sec_report)
+    db_session.commit()
+
+    # 매칭 수행
+    matcher = FnGuideMatcher(db_session)
+    result = matcher.match_pending_reports(limit=10, dry_run=False)
+
+    assert result["status"] == "success"
+    assert result["matched_count"] == 1
+
+    # 업데이트 결과 검증
+    db_session.refresh(sec_report)
+    assert sec_report.fnguide_summary_id == 505
+

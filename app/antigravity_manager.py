@@ -182,6 +182,8 @@ class AntigravityManager:
         # ── 4) 최종 프롬프트 구성 ────────────────────────────────
         full_prompt = (
             f"You are a professional financial analyst. Act as Antigravity AI. Respond in Korean.\n"
+            f"Do not write any greetings, introductions, or pleasantries (e.g., '안녕하세요, Antigravity AI입니다', '요약해 드립니다').\n"
+            f"Start directly with the summary content according to the instructions.\n"
             f"Analyze the following report and summarize it following the prompt instructions.\n\n"
             f"Context: {context}\n"
             f"Report Content:\n{truncated_text}\n\n"
@@ -246,7 +248,29 @@ class AntigravityManager:
                 "generationConfig": {
                     "temperature": self.config.temperature,
                     "maxOutputTokens": self.config.max_tokens,
-                }
+                },
+                "safetySettings": [
+                    {
+                        "category": "HARM_CATEGORY_HARASSMENT",
+                        "threshold": "BLOCK_NONE"
+                    },
+                    {
+                        "category": "HARM_CATEGORY_HATE_SPEECH",
+                        "threshold": "BLOCK_NONE"
+                    },
+                    {
+                        "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                        "threshold": "BLOCK_NONE"
+                    },
+                    {
+                        "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                        "threshold": "BLOCK_NONE"
+                    },
+                    {
+                        "category": "HARM_CATEGORY_CIVIC_INTEGRITY",
+                        "threshold": "BLOCK_NONE"
+                    }
+                ]
             }
 
             async with aiohttp.ClientSession() as session:

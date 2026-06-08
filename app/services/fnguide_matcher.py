@@ -124,7 +124,7 @@ def parse_date(date_str: str) -> Optional[datetime.date]:
     # 3. YYYY.MM.DD 형태 (예: 2026.06.05)
     if "." in date_str:
         try:
-            return datetime.strptime(date_str.split(" ")[0], "%Y.%m.%md").date()
+            return datetime.strptime(date_str.split(" ")[0], "%Y.%m.%d").date()
         except ValueError:
             # 혹시 마침표 분할 시도
             try:
@@ -175,14 +175,22 @@ class FnGuideMatcher:
             if not sec_date:
                 continue
                 
-            # 날짜 +-1일 범위 계산
+            # 날짜 +-1일 범위 계산 (대시 형태 및 마침표 형태 대응)
             start_date_str = (sec_date - timedelta(days=1)).strftime("%Y-%m-%d")
             end_date_str = (sec_date + timedelta(days=1)).strftime("%Y-%m-%d")
+            
+            start_date_dot = (sec_date - timedelta(days=1)).strftime("%Y.%m.%d")
+            end_date_dot = (sec_date + timedelta(days=1)).strftime("%Y.%m.%d")
             
             # 2. 날짜가 +-1일 이내인 FnGuide 요약 리포트 후보군 필터링
             candidates = (
                 self.db.query(FnGuideReportSummary)
-                .filter(FnGuideReportSummary.report_date.between(start_date_str, end_date_str))
+                .filter(
+                    or_(
+                        FnGuideReportSummary.report_date.between(start_date_str, end_date_str),
+                        FnGuideReportSummary.report_date.between(start_date_dot, end_date_dot)
+                    )
+                )
                 .all()
             )
             
