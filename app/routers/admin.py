@@ -669,6 +669,7 @@ class LLMSettingUpdate(BaseModel):
     visibility: str = Field(..., pattern="^(admin|telegram)$", description="노출 범위 ('admin' 또는 'telegram')")
 
 @router.get("/llm-setting", summary="LLM 요약 노출 설정 조회 (Admin)")
+@router.get("/external/api/admin/llm-setting", summary="LLM 요약 노출 설정 조회 (Admin)")
 async def get_llm_setting_admin(
     current_user: User = Depends(require_admin),
 ):
@@ -680,6 +681,7 @@ async def get_llm_setting_admin(
     return {"visibility": visibility}
 
 @router.post("/llm-setting", summary="LLM 요약 노출 설정 변경 (Admin)")
+@router.post("/external/api/admin/llm-setting", summary="LLM 요약 노출 설정 변경 (Admin)")
 async def update_llm_setting_admin(
     payload: LLMSettingUpdate,
     current_user: User = Depends(require_admin),
