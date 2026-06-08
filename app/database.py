@@ -33,7 +33,9 @@ if _LIB_DATABASE:
     BasePostgreSQLManager = _db_module.BasePostgreSQLManager
 else:
     # fallback: ssh-library 없으면 env-only
-    load_dotenv()
+    BasePostgreSQLManager = None
+
+load_dotenv()
 
 # 💡 [주의 - 테스트 및 운영 환경 듀얼 DB 아키텍처 안내]
 # - 본 웹 애플리케이션(FastAPI 백엔드)은 영속성 데이터를 PostgreSQL 고정형으로 연동하여 가동합니다.
