@@ -75,6 +75,7 @@ def load_llm_visibility() -> str:
     return "admin"
 
 @router.get("/reports/llm-setting", summary="LLM 요약 노출 범위 설정 조회 (Public)")
+@router.get("/external/api/reports/llm-setting", summary="LLM 요약 노출 범위 설정 조회 (Public)")
 async def get_llm_setting():
     """
     프론트엔드 및 일반 사용자에게 LLM 요약 노출 설정을 제공합니다.
@@ -84,6 +85,7 @@ async def get_llm_setting():
 
 
 @router.get("/reports/notifications", response_model=list[ReportNotificationResponse], summary="최신 AI 요약 완료 알림 목록 조회")
+@router.get("/external/api/reports/notifications", response_model=list[ReportNotificationResponse], summary="최신 AI 요약 완료 알림 목록 조회")
 async def get_summary_notifications(
     limit: Annotated[int, Query(ge=1, le=100)] = 30,
     db: Session = Depends(get_reports_db),
