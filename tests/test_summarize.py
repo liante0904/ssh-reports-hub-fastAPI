@@ -9,6 +9,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from datetime import datetime
+import os
+import uuid
 
 from app.database import Base, get_reports_db, get_keywords_db
 from app.main import app
@@ -20,17 +22,28 @@ import app.deepseek_manager as _ds_mgr
 
 
 
+# 전역 SQLite 테스트 DB 설정
+local_engine = create_engine(
+    "sqlite://",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=local_engine)
+
+
 @pytest.fixture
 async def admin_client():
-    # 완벽한 테스트 격리를 보장하기 위해 각 비동기 테스트 실행 시마다 고유한 SQLite 인메모리 DB를 개별 생성합니다.
-    local_engine = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=local_engine)
+    # 완벽한 테스트 격리를 보장하기 위해 각 비동기 테스트 실행 시마다 고유한 SQLite 물리 파일을 개별 생성합니다.
+    db_filename = f"test_summarize_{uuid.uuid4().hex}.db"
+    db_url = f"sqlite:///{db_filename}"
     
-    Base.metadata.create_all(bind=local_engine)
+    engine = create_engine(
+        db_url,
+        connect_args={"check_same_thread": False},
+    )
+    TestingSessionLocal.configure(bind=engine)
+    
+    Base.metadata.create_all(bind=engine)
 
     db = TestingSessionLocal()
 
@@ -112,7 +125,15 @@ async def admin_client():
         yield test_client
 
     fastapi_app.dependency_overrides.clear()
-    Base.metadata.drop_all(bind=local_engine)
+    Base.metadata.drop_all(bind=engine)
+    engine.dispose()
+    
+    # 임시 물리 SQLite 파일 제거
+    if os.path.exists(db_filename):
+        try:
+            os.remove(db_filename)
+        except Exception:
+            pass
 
 
 @pytest.mark.anyio
