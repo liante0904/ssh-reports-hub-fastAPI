@@ -15,21 +15,25 @@ from app.main import app
 from app.dependencies import get_user_from_token
 from app.models import SecReport, User
 from app.settings import Settings
+import app.antigravity_manager as _ag_mgr
+import app.deepseek_manager as _ds_mgr
 
-# 테스트용 SQLite 메모리 DB 설정
-engine = create_engine(
-    "sqlite://",
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 @pytest.fixture
 async def admin_client():
-    Base.metadata.create_all(bind=engine)
+    # 완벽한 테스트 격리를 보장하기 위해 각 비동기 테스트 실행 시마다 고유한 SQLite 인메모리 DB를 개별 생성합니다.
+    local_engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=local_engine)
+    
+    Base.metadata.create_all(bind=local_engine)
 
     db = TestingSessionLocal()
+
     # 관리자 유저 추가
     db.add(User(
         id=999,
@@ -97,16 +101,18 @@ async def admin_client():
         finally:
             test_db.close()
 
-    app.dependency_overrides[get_user_from_token] = override_get_admin_user
-    app.dependency_overrides[get_reports_db] = override_get_db
-    app.dependency_overrides[get_keywords_db] = override_get_db
+    from app.main import app as fastapi_app
 
-    transport = ASGITransport(app=app)
+    fastapi_app.dependency_overrides[get_user_from_token] = override_get_admin_user
+    fastapi_app.dependency_overrides[get_reports_db] = override_get_db
+    fastapi_app.dependency_overrides[get_keywords_db] = override_get_db
+
+    transport = ASGITransport(app=fastapi_app)
     async with AsyncClient(transport=transport, base_url="http://test") as test_client:
         yield test_client
 
-    app.dependency_overrides.clear()
-    Base.metadata.drop_all(bind=engine)
+    fastapi_app.dependency_overrides.clear()
+    Base.metadata.drop_all(bind=local_engine)
 
 
 @pytest.mark.anyio
