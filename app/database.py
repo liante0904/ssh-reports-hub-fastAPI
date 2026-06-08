@@ -1,30 +1,39 @@
 import os
 import sys
+import sysconfig
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from dotenv import load_dotenv
 
-# ssh-library 공통 라이브러리 로드 (__init__.py의 무거운 의존성 회피)
+# ssh-library 공통 DB credential 로드.
+# __init__.py가 scraper/analytics까지 import하므로 database.py만 직접 로드한다.
 import importlib.util
-_LIB_SRC = None
-for _p in ["/opt/ssh-library/src", os.path.expanduser("~/workspace/lib/ssh-library/src")]:
-    if os.path.isdir(_p):
-        _LIB_SRC = _p
+_LIB_DATABASE = None
+_candidate_roots = [
+    sysconfig.get_paths().get("purelib"),
+    "/opt/venv/lib/python3.12/site-packages",
+    "/opt/ssh-library",
+    os.path.expanduser("~/workspace/lib/ssh-library"),
+]
+for _root in _candidate_roots:
+    if not _root:
+        continue
+    _candidate = os.path.join(_root, "ssh_library", "database.py")
+    if os.path.isfile(_candidate):
+        _LIB_DATABASE = _candidate
         break
 
-if _LIB_SRC:
+if _LIB_DATABASE:
     _spec = importlib.util.spec_from_file_location(
         "ssh_library.database",
-        os.path.join(_LIB_SRC, "ssh_library", "database.py")
+        _LIB_DATABASE,
     )
     _db_module = importlib.util.module_from_spec(_spec)
     _spec.loader.exec_module(_db_module)
     BasePostgreSQLManager = _db_module.BasePostgreSQLManager
 else:
     # fallback: ssh-library 없으면 env-only
-    BasePostgreSQLManager = None
-
-load_dotenv()
+    load_dotenv()
 
 # 💡 [주의 - 테스트 및 운영 환경 듀얼 DB 아키텍처 안내]
 # - 본 웹 애플리케이션(FastAPI 백엔드)은 영속성 데이터를 PostgreSQL 고정형으로 연동하여 가동합니다.
@@ -32,6 +41,14 @@ load_dotenv()
 #   운영 데이터를 절대 침범 및 훼손하지 않기 위해 'DB_BACKEND=sqlite' 분기를 인지하여 인메모리 SQLite DB를 
 #   동적으로 주입 및 활용하도록 설계되어 있습니다.
 # - 타 LLM은 이를 무시하고 테스트 코드 내에서 PostgreSQL을 직접 갱신(C/U/D)하려는 무모한 연산을 하지 마십시오.
+
+POSTGRES_ENGINE_KWARGS = {
+    "pool_pre_ping": True,
+    "pool_recycle": 1800,
+    "pool_size": int(os.getenv("DB_POOL_SIZE", "10")),
+    "max_overflow": int(os.getenv("DB_MAX_OVERFLOW", "10")),
+    "pool_timeout": int(os.getenv("DB_POOL_TIMEOUT", "10")),
+}
 
 # --- 공통 PostgreSQL 설정 (ssh-library 기반 중앙 credential 관리) ---
 if BasePostgreSQLManager is not None:
@@ -52,14 +69,14 @@ else:
 REPORTS_DATABASE_URL = f"postgresql://{PG_USER}:{PG_PASSWORD}@{PG_HOST}:{PG_PORT}/{PG_DB}"
 reports_connect_args = {}
 
-reports_engine = create_engine(REPORTS_DATABASE_URL, connect_args=reports_connect_args)
+reports_engine = create_engine(REPORTS_DATABASE_URL, connect_args=reports_connect_args, **POSTGRES_ENGINE_KWARGS)
 ReportsSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=reports_engine)
 
 
 # --- 2. 키워드/유저용 DB 설정 (무조건 PostgreSQL 고정) ---
 KEYWORDS_DATABASE_URL = f"postgresql://{PG_USER}:{PG_PASSWORD}@{PG_HOST}:{PG_PORT}/{PG_DB}"
 
-keywords_engine = create_engine(KEYWORDS_DATABASE_URL)
+keywords_engine = create_engine(KEYWORDS_DATABASE_URL, **POSTGRES_ENGINE_KWARGS)
 KeywordsSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=keywords_engine)
 
 
@@ -68,7 +85,7 @@ class Base(DeclarativeBase):
 
 # --- 의존성 주입 함수들 ---
 
-async def get_db():
+def get_db():
     """기본 db 유지 (하위 호환성용)"""
     db = ReportsSessionLocal()
     try:
@@ -76,7 +93,7 @@ async def get_db():
     finally:
         db.close()
 
-async def get_reports_db():
+def get_reports_db():
     """리포트 전용 DB 세션"""
     db = ReportsSessionLocal()
     try:
@@ -84,7 +101,7 @@ async def get_reports_db():
     finally:
         db.close()
 
-async def get_keywords_db():
+def get_keywords_db():
     """키워드/유저 전용 PostgreSQL 세션"""
     db = KeywordsSessionLocal()
     try:

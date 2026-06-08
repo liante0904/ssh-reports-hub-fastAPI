@@ -19,3 +19,4 @@ build/
 logs/
 trigger_production_match.py
 trigger_full_backfill.py
+vendor/

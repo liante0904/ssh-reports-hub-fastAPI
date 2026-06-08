@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -15,6 +16,14 @@ RUN pip install --no-cache-dir uv
 # uv를 사용하여 의존성 설치. /app은 런타임 bind mount 대상이므로 venv는 /opt에 둔다.
 COPY pyproject.toml uv.lock .python-version ./
 RUN uv sync --frozen --no-dev
+
+ARG INSTALL_SSH_LIBRARY=0
+RUN --mount=from=ssh_library,target=/tmp/ssh-library \
+    if [ "$INSTALL_SSH_LIBRARY" = "1" ]; then \
+      uv pip install --python /opt/venv/bin/python /tmp/ssh-library; \
+    else \
+      echo "Skipping ssh-library install"; \
+    fi
 
 # 소스 코드 복사
 COPY . .

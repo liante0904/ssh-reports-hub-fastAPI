@@ -1,7 +1,12 @@
 services:
   ssh-reports-hub-fastapi-blue:
     image: ghcr.io/liante0904/ssh-reports-hub-fastapi:latest
-    build: .
+    build:
+      context: .
+      args:
+        INSTALL_SSH_LIBRARY: ${INSTALL_SSH_LIBRARY:-0}
+      additional_contexts:
+        ssh_library: ../../../../lib/ssh-library
     container_name: ssh-reports-hub-fastapi-blue
     user: "1001:1001"
     expose:
@@ -18,7 +23,7 @@ services:
     environment:
       - APP_ENV=${APP_ENV:-prod}
       - TZ=Asia/Seoul
-      - PYTHONPATH=/opt/ssh-library/src:/opt/venv/lib/python3.12/site-packages
+      - PYTHONPATH=/opt/venv/lib/python3.12/site-packages:/opt/ssh-library
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_DB=${REDIS_DB:-0}
@@ -30,7 +35,12 @@ services:
 
   ssh-reports-hub-fastapi-green:
     image: ghcr.io/liante0904/ssh-reports-hub-fastapi:latest
-    build: .
+    build:
+      context: .
+      args:
+        INSTALL_SSH_LIBRARY: ${INSTALL_SSH_LIBRARY:-0}
+      additional_contexts:
+        ssh_library: ../../../../lib/ssh-library
     container_name: ssh-reports-hub-fastapi-green
     user: "1001:1001"
     expose:
@@ -47,7 +57,7 @@ services:
     environment:
       - APP_ENV=${APP_ENV:-prod}
       - TZ=Asia/Seoul
-      - PYTHONPATH=/opt/ssh-library/src:/opt/venv/lib/python3.12/site-packages
+      - PYTHONPATH=/opt/venv/lib/python3.12/site-packages:/opt/ssh-library
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_DB=${REDIS_DB:-0}

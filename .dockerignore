@@ -15,4 +15,5 @@ htmlcov/
 *.sqlite3
 *.log
 logs/
+vendor/
 docs/
