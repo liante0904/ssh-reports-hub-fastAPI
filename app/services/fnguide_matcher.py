@@ -68,27 +68,27 @@ def match_authors(sec_writer: str, fn_author: str) -> bool:
     return len(sec_set.intersection(fn_set)) > 0
 
 
-def calculate_title_similarity(sec_title: str, fn_title: str, company_name: str = None) -> float:
+def get_keywords(title: str) -> set:
     """
-    두 제목 사이의 핵심 키워드 유사도(Jaccard Similarity)를 계산합니다.
+    제목에서 핵심 키워드를 추출하여 셋(set)으로 반환합니다.
+    (CPU 부하 경감을 위해 독립된 헬퍼 함수로 분리 및 일괄 정규식 캐싱에 최적화)
     """
-    if not sec_title or not fn_title:
-        return 0.0
-        
-    def get_keywords(title: str) -> set:
-        title = title.lower()
-        if company_name:
-            title = title.replace(company_name.lower(), "")
-            
-        # 2글자 이상의 한글, 영문, 숫자 단어 추출
-        words = re.findall(r"[가-힣a-zA-Z0-9]{2,}", title)
-        # 종목 분석 보고서에서 흔히 쓰이는 비중 낮은 단어들 제외
-        stop_words = {"보고서", "리포트", "분석", "전망", "주가", "목표", "목표주가", "투자의견", "buy", "hold"}
-        return {w for w in words if w not in stop_words}
-
-    sec_tokens = get_keywords(sec_title)
-    fn_tokens = get_keywords(fn_title)
+    if not title:
+        return set()
+    title = title.lower()
     
+    # 2글자 이상의 한글, 영문, 숫자 단어 추출
+    words = re.findall(r"[가-힣a-zA-Z0-9]{2,}", title)
+    # 종목 분석 보고서에서 흔히 쓰이는 비중 낮은 단어들 제외
+    stop_words = {"보고서", "리포트", "분석", "전망", "주가", "목표", "목표주가", "투자의견", "buy", "hold"}
+    return {w for w in words if w not in stop_words}
+
+
+def calculate_title_similarity_pretokenized(sec_tokens: set, fn_tokens: set) -> float:
+    """
+    이미 토큰화된 두 제목의 키워드 셋 사이의 Jaccard Similarity를 계산합니다.
+    루프 내 정규식 반복 실행을 전면 제거하여 CPU 연산량을 극대화해 경감합니다.
+    """
     if not sec_tokens or not fn_tokens:
         return 0.0
         
@@ -96,6 +96,25 @@ def calculate_title_similarity(sec_title: str, fn_title: str, company_name: str 
     union = sec_tokens.union(fn_tokens)
     
     return len(intersection) / len(union) if union else 0.0
+
+
+def calculate_title_similarity(sec_title: str, fn_title: str, company_name: str = None) -> float:
+    """
+    두 제목 사이의 핵심 키워드 유사도(Jaccard Similarity)를 계산합니다.
+    (하위 호환성 및 독립 실행 테스트 보장을 위해 유지)
+    """
+    if not sec_title or not fn_title:
+        return 0.0
+        
+    sec_tokens = get_keywords(sec_title)
+    fn_tokens = get_keywords(fn_title)
+    
+    if company_name:
+        comp_tokens = get_keywords(company_name)
+        sec_tokens = sec_tokens - comp_tokens
+        fn_tokens = fn_tokens - comp_tokens
+        
+    return calculate_title_similarity_pretokenized(sec_tokens, fn_tokens)
 
 
 def parse_date(date_str: str) -> Optional[datetime.date]:
@@ -147,6 +166,10 @@ class FnGuideMatcher:
         """
         아직 fnguide_summary_id가 할당되지 않은 최근 tbl_sec_reports 행들을 조회하여,
         tbl_fnguide_report_summaries와 영리하게 매칭시키고 업데이트합니다.
+        
+        [CPU 및 DB IO 최적화 적용]:
+        1. 루프 내부에서 후보군을 매번 쿼리하던 N+1 Query 문제를 제거하고, 일치 대상 범위의 후보군을 단 1회 대량(Bulk) 조회합니다.
+        2. 정규식 키워드 파싱(get_keywords) 연산을 중복으로 실행하지 않도록 미리 캐싱(Pre-tokenization)을 적용하여 CPU 연산 부담을 최소화합니다.
         """
         # 1. fnguide_summary_id가 비어있는 우리 리포트 목록 조회
         # 최근 리포트 순으로 limit 개 조회
@@ -170,33 +193,83 @@ class FnGuideMatcher:
                 "updates": []
             }
 
+        # 2. 날짜 일괄 파싱 및 전체 범위 산출 (N+1 Query 회피)
+        valid_dates = []
+        parsed_report_dates = {}  # report_id -> datetime.date 캐싱용
+        for report in reports:
+            sec_date = parse_date(report.reg_dt)
+            if sec_date:
+                valid_dates.append(sec_date)
+                parsed_report_dates[report.report_id] = sec_date
+
+        if not valid_dates:
+            return {
+                "status": "success",
+                "message": "유효한 날짜가 포함된 리포트가 없습니다.",
+                "matched_count": 0,
+                "total_processed": len(reports),
+                "min_report_id": min([r.report_id for r in reports]) if reports else None,
+                "updates": []
+            }
+
+        # 대량 쿼리를 위한 전체 검색 범위 산정 (+-1일 고려)
+        min_date = min(valid_dates) - timedelta(days=1)
+        max_date = max(valid_dates) + timedelta(days=1)
+
+        min_str_dash = min_date.strftime("%Y-%m-%d")
+        max_str_dash = max_date.strftime("%Y-%m-%d")
+        min_str_dot = min_date.strftime("%Y.%m.%d")
+        max_str_dot = max_date.strftime("%Y.%m.%d")
+
+        # 3. 대상 범위 내의 모든 FnGuide 요약 리포트 후보군을 단 1회의 쿼리로 대량 로드
+        all_candidates = (
+            self.db.query(FnGuideReportSummary)
+            .filter(
+                or_(
+                    FnGuideReportSummary.report_date.between(min_str_dash, max_str_dash),
+                    FnGuideReportSummary.report_date.between(min_str_dot, max_str_dot)
+                )
+            )
+            .all()
+        )
+
+        # 4. 후보군들의 메타 정보 및 토큰화 결과 메모리 캐싱 (CPU 연산 가중 제거)
+        candidate_tokens_map = {}
+        for candidate in all_candidates:
+            fn_base_tokens = get_keywords(candidate.report_title)
+            comp_tokens = get_keywords(candidate.company_name) if candidate.company_name else set()
+            cand_date = parse_date(candidate.report_date)
+            candidate_tokens_map[candidate.summary_id] = {
+                "base_tokens": fn_base_tokens,
+                "comp_tokens": comp_tokens,
+                "parsed_date": cand_date
+            }
+
         matched_count = 0
         updates_log = []
 
+        # 5. 각 리포트별로 최적 매칭 후보 탐색 (메모리 상에서 Jaccard 연산만 수행)
         for report in reports:
-            sec_date = parse_date(report.reg_dt)
+            sec_date = parsed_report_dates.get(report.report_id)
             if not sec_date:
                 continue
-                
-            # 날짜 +-1일 범위 계산 (대시 형태 및 마침표 형태 대응)
-            start_date_str = (sec_date - timedelta(days=1)).strftime("%Y-%m-%d")
-            end_date_str = (sec_date + timedelta(days=1)).strftime("%Y-%m-%d")
+
+            # 우리 리포트 제목 토큰화 (루프 내 1회만 계산)
+            sec_base_tokens = get_keywords(report.article_title)
+
+            # 날짜 조건 +-1일 필터링 (메모리 필터링)
+            start_limit = sec_date - timedelta(days=1)
+            end_limit = sec_date + timedelta(days=1)
             
-            start_date_dot = (sec_date - timedelta(days=1)).strftime("%Y.%m.%d")
-            end_date_dot = (sec_date + timedelta(days=1)).strftime("%Y.%m.%d")
-            
-            # 2. 날짜가 +-1일 이내인 FnGuide 요약 리포트 후보군 필터링
-            candidates = (
-                self.db.query(FnGuideReportSummary)
-                .filter(
-                    or_(
-                        FnGuideReportSummary.report_date.between(start_date_str, end_date_str),
-                        FnGuideReportSummary.report_date.between(start_date_dot, end_date_dot)
-                    )
-                )
-                .all()
-            )
-            
+            candidates = []
+            for candidate in all_candidates:
+                cand_meta = candidate_tokens_map.get(candidate.summary_id)
+                if not cand_meta:
+                    continue
+                cand_date = cand_meta["parsed_date"]
+                if cand_date and start_limit <= cand_date <= end_limit:
+                    candidates.append(candidate)
+
             if not candidates:
                 continue
 
@@ -239,12 +312,14 @@ class FnGuideMatcher:
                 if fn_stock_name and not stock_matched:
                     continue
 
-                # 라. 제목 키워드 유사도 계산
-                score = calculate_title_similarity(
-                    report.article_title, 
-                    candidate.report_title, 
-                    company_name=fn_stock_name
-                )
+                # 라. 미리 캐싱된 토큰 셋 기반으로 제목 키워드 유사도 고속 연산 (Jaccard Set 연산)
+                cand_meta = candidate_tokens_map[candidate.summary_id]
+                comp_tokens = cand_meta["comp_tokens"]
+                
+                sec_tokens = sec_base_tokens - comp_tokens
+                fn_tokens = cand_meta["base_tokens"] - comp_tokens
+
+                score = calculate_title_similarity_pretokenized(sec_tokens, fn_tokens)
                 
                 # 종목명 자체가 일치하는 경우 추가 가산점을 부여
                 if stock_matched:
@@ -255,7 +330,7 @@ class FnGuideMatcher:
                     best_score = score
                     best_match = candidate
 
-            # 3. 매칭 완료 시 ID 저장
+            # 6. 매칭 완료 시 ID 저장
             if best_match:
                 matched_count += 1
                 report.fnguide_summary_id = best_match.summary_id
