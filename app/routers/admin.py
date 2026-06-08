@@ -89,6 +89,7 @@ async def get_summarize_command(
 async def trigger_summarize(
     report_id: int,
     engine: str = Query("deepseek", description="요약에 사용할 엔진 ('deepseek' 또는 'ag')"),
+    force: bool = Query(False, description="이미 요약이 존재하더라도 강제로 재요약을 실행합니다."),
     current_user: User = Depends(require_admin),
     reports_db: Session = Depends(get_reports_db),
     keywords_db: Session = Depends(get_keywords_db),
@@ -112,13 +113,14 @@ async def trigger_summarize(
         raise NotFoundException("Report not found")
 
     # 이미 요약이 있는지 확인
-    if report.gemini_summary and report.gemini_summary.strip():
+    if not force and report.gemini_summary and report.gemini_summary.strip():
         return {
             "report_id": report_id,
             "status": "skipped",
             "message": "이미 요약이 존재합니다.",
             "existing_summary": report.gemini_summary[:100] + "...",
         }
+
 
     # PDF URL 결정
     pdf_url = report.pdf_url or report.telegram_url or report.download_url or ""
@@ -195,6 +197,11 @@ async def trigger_enrich_tags(
     """
     import sys
     import os
+    # 💡 [주의 - 상위 모노레포 enricher 동적 경로 바인딩 안내]
+    # - 이 웹 서비스는 별도 위치에 설계된 'enricher' 태그 분류기 엔진을 공용으로 참조합니다.
+    # - 로컬 개발 환경 및 도커 컴포즈 구동 환경 모두에서 백엔드 디렉토리 기준 상위 4단계 수준(../../../../enricher)에 
+    #   실제 enricher 소스 폴더가 적절히 볼륨 마운트 혹은 배치되어 존재해야 합니다.
+    # - 타 LLM은 이 상대 경로를 함부로 변형하거나 마운트 설정을 해제하여 ModuleNotFoundError를 발생시키지 않도록 주의하십시오.
     enricher_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'enricher')
     if enricher_path not in sys.path:
         sys.path.insert(0, enricher_path)

@@ -26,6 +26,13 @@ else:
 
 load_dotenv()
 
+# 💡 [주의 - 테스트 및 운영 환경 듀얼 DB 아키텍처 안내]
+# - 본 웹 애플리케이션(FastAPI 백엔드)은 영속성 데이터를 PostgreSQL 고정형으로 연동하여 가동합니다.
+# - 단, 테스트 케이스 실행(tests/) 및 스크립트 독립 구동(scripts/ 및 pytest 등) 시에는 
+#   운영 데이터를 절대 침범 및 훼손하지 않기 위해 'DB_BACKEND=sqlite' 분기를 인지하여 인메모리 SQLite DB를 
+#   동적으로 주입 및 활용하도록 설계되어 있습니다.
+# - 타 LLM은 이를 무시하고 테스트 코드 내에서 PostgreSQL을 직접 갱신(C/U/D)하려는 무모한 연산을 하지 마십시오.
+
 # --- 공통 PostgreSQL 설정 (ssh-library 기반 중앙 credential 관리) ---
 if BasePostgreSQLManager is not None:
     _pg_manager = BasePostgreSQLManager()

@@ -29,9 +29,10 @@ class AntigravityConfig:
     api_key: str = ""
     model: str = "gemini-2.5-flash"
     api_base: str = "https://generativelanguage.googleapis.com/v1beta/models"
-    max_tokens: int = 2048
+    max_tokens: int = 8192
     temperature: float = 0.2
     dry_run: bool = True  # True면 텍스트 추출까지만 하고 API 호출 안 함
+
 
 
 class AntigravityManager:

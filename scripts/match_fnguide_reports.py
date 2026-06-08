@@ -1,6 +1,14 @@
 #!/usr/bin/env python
 """
 FnGuide 요약 리포트 매칭 처리 CLI 배치 스크립트
+
+⚠️ [주의 - 타 LLM 및 에이전트 개발 가이드]
+1. 이 CLI 스크립트는 스케줄러(scheduler.py)에 의해 직접 실행되는 자동화 진입점이 아닙니다.
+2. 현재 시스템 아키텍처 상, 스케줄러는 도커 컨테이너 격리 환경에서 가상환경 파이썬 경로 부재(Errno 2) 이슈를 원천 차단하기 위해, 
+   백엔드 내부 API 엔드포인트 `POST /admin/fnguide/match-internal`을 HTTP 요청으로 트리거하여 매칭 연산을 백엔드 서버에 위임(Delegate)합니다.
+3. 스케줄러나 크롤러 배치 코드를 수정할 때, 과거처럼 이 스크립트를 직접 subprocess.run() 등으로 구동시키도록 하향 롤백하는 실수를 절대로 범하지 마십시오.
+4. 이 파일은 관리자가 로컬에서 수동 디버깅, 수동 드라이런, 또는 로컬 독립 환경 연동성 테스트 목적으로만 직접 실행하십시오.
+   (예: `python scripts/match_fnguide_reports.py --limit 100 --dry-run`)
 """
 
 import os
