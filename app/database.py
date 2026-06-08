@@ -13,6 +13,7 @@ _candidate_roots = [
     sysconfig.get_paths().get("purelib"),
     "/opt/venv/lib/python3.12/site-packages",
     "/opt/ssh-library",
+    os.path.expanduser("~/workspace/lib/ssh_library"),
     os.path.expanduser("~/workspace/lib/ssh-library"),
 ]
 for _root in _candidate_roots:
