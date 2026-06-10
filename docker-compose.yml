@@ -6,14 +6,14 @@ services:
       args:
         INSTALL_SSH_LIBRARY: ${INSTALL_SSH_LIBRARY:-0}
       additional_contexts:
-        ssh_library: ../../../../lib/ssh-library
+        ssh_library: ../../../../lib/ssh_library
     container_name: ssh-reports-hub-fastapi-blue
     user: "1001:1001"
     expose:
       - "8000"
     volumes:
       - .:/app
-      - /home/ubuntu/workspace/lib/ssh-library:/opt/ssh-library:ro
+      - /home/ubuntu/workspace/lib/ssh_library:/opt/ssh-library:ro
       - /home/ubuntu/legacy/telegram-stock-info-bot/send:/screening_files:ro
       - /home/ubuntu/workspace/external.reports-hub/apps/backend/ssh-reports-hub-fastAPI/logs:/logs/scraper:ro
       - /home/ubuntu/logs:/logs/main:ro
@@ -40,14 +40,14 @@ services:
       args:
         INSTALL_SSH_LIBRARY: ${INSTALL_SSH_LIBRARY:-0}
       additional_contexts:
-        ssh_library: ../../../../lib/ssh-library
+        ssh_library: ../../../../lib/ssh_library
     container_name: ssh-reports-hub-fastapi-green
     user: "1001:1001"
     expose:
       - "8000"
     volumes:
       - .:/app
-      - /home/ubuntu/workspace/lib/ssh-library:/opt/ssh-library:ro
+      - /home/ubuntu/workspace/lib/ssh_library:/opt/ssh-library:ro
       - /home/ubuntu/legacy/telegram-stock-info-bot/send:/screening_files:ro
       - /home/ubuntu/workspace/external.reports-hub/apps/backend/ssh-reports-hub-fastAPI/logs:/logs/scraper:ro
       - /home/ubuntu/logs:/logs/main:ro

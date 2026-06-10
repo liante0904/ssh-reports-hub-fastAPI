@@ -663,41 +663,5 @@ async def view_log_file(
         raise ServiceUnavailableException(f"Failed to read file: {e}")
 
 
-from pydantic import BaseModel, Field
 
-class LLMSettingUpdate(BaseModel):
-    visibility: str = Field(..., pattern="^(admin|telegram)$", description="노출 범위 ('admin' 또는 'telegram')")
-
-@router.get("/llm-setting", summary="LLM 요약 노출 설정 조회 (Admin)")
-@router.get("/external/api/admin/llm-setting", summary="LLM 요약 노출 설정 조회 (Admin)")
-async def get_llm_setting_admin(
-    current_user: User = Depends(require_admin),
-):
-    """
-    관리자용 LLM 요약 노출 범위를 조회합니다.
-    """
-    from .reports import load_llm_visibility
-    visibility = load_llm_visibility()
-    return {"visibility": visibility}
-
-@router.post("/llm-setting", summary="LLM 요약 노출 설정 변경 (Admin)")
-@router.post("/external/api/admin/llm-setting", summary="LLM 요약 노출 설정 변경 (Admin)")
-async def update_llm_setting_admin(
-    payload: LLMSettingUpdate,
-    current_user: User = Depends(require_admin),
-):
-    """
-    관리자용 LLM 요약 노출 범위를 변경합니다.
-    기존 주석 보존: 지정 파일에 JSON 형식으로 설정 영속화
-    """
-    from .reports import SETTING_FILE
-    import json
-    try:
-        data = {"visibility": payload.visibility}
-        with open(SETTING_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        raise ServiceUnavailableException(f"Failed to save setting: {e}")
-    
-    return {"status": "success", "visibility": payload.visibility}
 
