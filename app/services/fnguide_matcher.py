@@ -52,7 +52,7 @@ def match_authors(sec_writer: str, fn_author: str) -> bool:
         
     # 특수기호 및 공백을 정규화하여 콤마(,) 기준으로 분리
     def parse_authors(author_str: str) -> set:
-        normalized = author_str.replace(" ", "").replace("/", ",").replace(";", ",").replace("&", ",")
+        normalized = author_str.replace(" ", "").replace(".", ",").replace("/", ",").replace(";", ",").replace("&", ",")
         # 괄호 안에 들어간 직책 등 제거 (예: '홍길동(연구원)')
         normalized = re.sub(r"\([^)]*\)", "", normalized)
         # '외' 나 '연구원' 등의 보조 단어 정규화
