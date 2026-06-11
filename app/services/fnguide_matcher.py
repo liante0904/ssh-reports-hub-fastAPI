@@ -197,7 +197,8 @@ class FnGuideMatcher:
         valid_dates = []
         parsed_report_dates = {}  # report_id -> datetime.date 캐싱용
         for report in reports:
-            sec_date = parse_date(report.reg_dt)
+            # 2026-06-11: reg_dt(text) → report_date(date) 마이그레이션 완료
+            sec_date = report.report_date if hasattr(report, 'report_date') and report.report_date else parse_date(report.reg_dt)
             if sec_date:
                 valid_dates.append(sec_date)
                 parsed_report_dates[report.report_id] = sec_date
