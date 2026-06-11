@@ -8,7 +8,12 @@ class TimestampMixin:
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 # DB 설정에 따라 테이블 이름 결정
+# 2026-06-11: 옛 컬럼 드랍 시 v_sec_reports_full 뷰로 전환 예정.
+#   뷰는 SELECT 전용이므로 ORM write(report.fnguide_summary_id=...)는
+#   raw SQL로 마이그레이션하거나, tbl_sec_reports에 직접 쓰도록 유지.
+#   참조: ~/workspace/external.reports-hub/docs/DB_MIGRATION_STATUS.md
 MAIN_TABLE_NAME = "tbl_sec_reports"
+# MAIN_TABLE_NAME = "v_sec_reports_full"  # ← 옛 컬럼 드랍 후 활성화
 
 class User(Base):
     __tablename__ = "tbl_sec_reports_telegram_users"
