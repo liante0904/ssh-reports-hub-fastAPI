@@ -166,7 +166,7 @@ class SecFirmInfo(Base):
     sec_firm_order = Column(Integer, primary_key=True)
     sec_firm_name = Column("firm_nm", String, nullable=False)
     is_direct_link = Column("telegram_update_yn", String, default="N")
-    description = Column("COMMENT_PDF_URL", String, nullable=True)
+    description = Column("comment_pdf_url", String, nullable=True)  # 2026-06-11: 소문자로 마이그레이션 완료
 
 
 class SecBoardInfo(Base):
