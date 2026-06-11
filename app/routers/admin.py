@@ -16,8 +16,12 @@ from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from ..database import get_keywords_db, get_reports_db
-from ssh_library import DeepSeekConfig, DeepSeekManager
 from ..dependencies import get_settings_dep, get_user_from_token
+
+# Lazy import: CI에 ssh_library 없으므로 호출 시점에 import
+def _get_deepseek():
+    from ssh_library import DeepSeekConfig, DeepSeekManager
+    return DeepSeekConfig, DeepSeekManager
 from ..exceptions import (
     FileTooLargeException,
     NotFoundException,
@@ -66,6 +70,7 @@ async def get_summarize_command(
         raise ValidationException("No PDF URL available for this report")
 
     # DeepSeek 매니저 (dry-run 모드)
+    DeepSeekConfig, DeepSeekManager = _get_deepseek()
     config = DeepSeekConfig(dry_run=True)
     manager = DeepSeekManager(config)
 
@@ -133,6 +138,7 @@ async def trigger_summarize(
         config = AntigravityConfig(dry_run=False)
         manager = AntigravityManager(config)
     else:
+        DeepSeekConfig, DeepSeekManager = _get_deepseek()
         config = DeepSeekConfig(dry_run=False)
         manager = DeepSeekManager(config)
 
