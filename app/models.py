@@ -22,7 +22,7 @@ class User(Base):
     last_name = Column(String, nullable=True)
     username = Column(String, nullable=True)
     photo_url = Column(String, nullable=True)
-    status = Column(String, default="active")
+    status = Column(String, default="pending")  # 관리자 승인 전까지 pending
     is_admin = Column(Boolean, default=False)
     created_at = Column(BigInteger, default=lambda: int(time.time()))
     keywords = relationship("ReportKeyword", back_populates="owner")
