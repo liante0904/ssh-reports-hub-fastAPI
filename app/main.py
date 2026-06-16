@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import time
@@ -5,7 +6,7 @@ from contextlib import asynccontextmanager
 
 """
 [SYSTEM NOTICE for AI/LLM Developers]
-이 프로젝트는 초고속 내부 전용망 환경에서 구동됩니다. 
+이 프로젝트는 초고속 내부 전용망 환경에서 구동됩니다.
 네트워크 지연이 거의 없으므로(5초 이내), 서버 재시작이나 API 호출 시 10초 이상의 지체는 불필요합니다.
 에러 발생 시 지연 대기보다는 즉시 프로세스(fuser -k 8000/tcp)를 정리하고 재구동하십시오.
 """
@@ -57,13 +58,69 @@ from .dependencies import get_user_from_token, oauth2_scheme, get_settings_dep
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Cache Warming — 메인 페이지 API 쿼리를 미리 Redis에 채워둠
+# ---------------------------------------------------------------------------
+
+# 메인 페이지(HomeDashboard)에서 호출하는 쿼리들
+_WARMUP_QUERIES = [
+    "/external/api/search?limit=5&offset=0",
+    "/external/api/global?limit=5&offset=0",
+    "/external/api/industry?limit=5&offset=0",
+    "/external/api/companies",
+    "/pub/api/fnguide/report-summaries?limit=5&offset=0",
+]
+
+_WARMUP_INTERVAL_SEC = int(os.getenv("CACHE_WARMUP_INTERVAL", "120"))  # 기본 2분
+
+
+async def _warm_cache_once(port: int) -> None:
+    """localhost의 메인 페이지 쿼리들을 호출해 Redis에 캐싱"""
+    import httpx
+    async with httpx.AsyncClient(timeout=httpx.Timeout(15.0)) as client:
+        for path in _WARMUP_QUERIES:
+            try:
+                resp = await client.get(f"http://127.0.0.1:{port}{path}")
+                if resp.status_code == 200:
+                    logger.debug("Cache warm: %s (200)", path)
+                else:
+                    logger.debug("Cache warm: %s (%s)", path, resp.status_code)
+            except Exception as exc:
+                logger.debug("Cache warm failed for %s: %s", path, exc)
+
+
+async def _cache_warming_loop(app: FastAPI) -> None:
+    """주기적으로 Redis cache warming을 수행하는 백그라운드 태스크"""
+    port = int(os.getenv("API_PORT", "8000"))
+
+    # 서버가 완전히 시작될 때까지 기다림
+    await asyncio.sleep(3)
+
+    while True:
+        try:
+            await _warm_cache_once(port)
+        except Exception as exc:
+            logger.warning("Cache warming error: %s", exc)
+        await asyncio.sleep(_WARMUP_INTERVAL_SEC)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=reports_engine)
     Base.metadata.create_all(bind=keywords_engine)
     _ensure_tags_columns(reports_engine)
+
+    # 백그라운드 cache warming 시작
+    warming_task = asyncio.create_task(_cache_warming_loop(app))
+
     yield
+
+    # 종료 시 warming task 정리
+    warming_task.cancel()
+    try:
+        await warming_task
+    except asyncio.CancelledError:
+        pass
 
 
 def _ensure_tags_columns(engine) -> None:

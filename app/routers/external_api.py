@@ -1,11 +1,12 @@
 import json
+import os
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from sqlalchemy import and_, or_, func
 from sqlalchemy.orm import Session, joinedload
 
-from ..cache import cache_response
+from ..cache import cache_response, invalidate_prefix
 from ..database import get_reports_db
 from ..models import SecReport, SecFirmInfo, SecBoardInfo, PdfArchive
 from ..schemas import CompanyResponse, BoardResponse
@@ -269,7 +270,7 @@ def _apply_search_filters(
 
 @router.get("/industry", summary="산업별 리포트 조회 (Public API)")
 @router.get("/industry/", include_in_schema=False)
-@cache_response(ttl=60, prefix="api")  # 60초 캐시 (산업분석 리포트)
+@cache_response(ttl=300, prefix="api")  # 5분 캐시 (insert 시 internal webhook으로 무효화)
 async def get_industry_reports(
     request: Request,
     last_report_id: Annotated[Optional[int], Query(ge=1)] = None,
@@ -341,7 +342,7 @@ async def get_industry_reports(
 
 @router.get("/global", summary="글로벌 리포트 조회 (Public API)")
 @router.get("/global/", include_in_schema=False)
-@cache_response(ttl=60, prefix="api")  # 60초 캐시 (글로벌 리포트)
+@cache_response(ttl=300, prefix="api")  # 5분 캐시 (insert 시 internal webhook으로 무효화)
 async def get_global_reports(
     request: Request,
     report_id: Annotated[Optional[int], Query(ge=1)] = None,
@@ -397,7 +398,7 @@ async def get_global_reports(
 
 @router.get("/search", summary="리포트 통합 검색 (Public API)")
 @router.get("/search/", include_in_schema=False)
-@cache_response(ttl=30, prefix="api")  # 30초 캐시 (최근 리포트)
+@cache_response(ttl=120, prefix="api")  # 2분 캐시 (insert 시 internal webhook으로 무효화)
 async def search_reports(
     request: Request,
     report_id: Annotated[Optional[int], Query(ge=1)] = None,
@@ -481,3 +482,36 @@ async def search_reports(
 
     rows, has_more = _paginate_query(query, limit, offset)
     return _collection_response(request, rows, limit, offset, has_more)
+
+
+# ---------------------------------------------------------------------------
+# Internal 캐시 무효화 Webhook — 스크래퍼가 새 데이터 insert 후 호출
+# ---------------------------------------------------------------------------
+
+INTERNAL_CACHE_TOKEN = os.getenv("INTERNAL_CACHE_TOKEN", "")
+
+
+def _verify_internal_token(x_internal_token: Annotated[Optional[str], Header()] = None) -> None:
+    """Internal webhook 호출자를 shared secret으로 인증한다."""
+    if not INTERNAL_CACHE_TOKEN:
+        raise HTTPException(status_code=501, detail="Internal cache invalidation is not configured")
+    if not x_internal_token or x_internal_token != INTERNAL_CACHE_TOKEN:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+
+@router.post("/internal/cache/invalidate", summary="[Internal] Redis 캐시 무효화")
+async def invalidate_cache(
+    x_internal_token: Annotated[Optional[str], Header()] = None,
+    prefix: Annotated[str, Query(description="무효화할 캐시 키 prefix (기본값: api)")] = "api",
+):
+    """
+    스크래퍼가 새 리포트를 PostgreSQL에 insert 한 후 호출하는 internal webhook.
+    지정된 prefix의 Redis 캐시를 모두 삭제하여 다음 API 호출이 최신 데이터를 반환하도록 한다.
+
+    사용 예 (GitHub Actions / cron):
+        curl -X POST https://ssh-oci.duckdns.org/external/api/internal/cache/invalidate \\
+          -H "X-Internal-Token: $INTERNAL_CACHE_TOKEN"
+    """
+    _verify_internal_token(x_internal_token)
+    deleted = await invalidate_prefix(prefix)
+    return {"status": "ok", "deleted_keys": deleted}

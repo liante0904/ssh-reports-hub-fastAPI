@@ -1,10 +1,11 @@
 from typing import Annotated, Optional
 import logging
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, selectinload
 
+from ..cache import cache_response
 from ..database import get_reports_db
 from ..models import FnGuideReportSummary
 from ..schemas import FnGuideReportDateResponse, FnGuideReportSummaryResponse
@@ -46,7 +47,9 @@ def _apply_report_filters(
 
 @router.get("/report-summaries", response_model=list[FnGuideReportSummaryResponse], summary="FnGuide 리포트 요약 목록 조회")
 @router.get("/report-summaries/", response_model=list[FnGuideReportSummaryResponse], include_in_schema=False)
+@cache_response(ttl=300, prefix="api")  # 5분 캐시 (insert 시 internal webhook으로 무효화)
 async def get_report_summaries(
+    request: Request,
     q: Annotated[Optional[str], Query(min_length=1, max_length=100)] = None,
     provider: Annotated[Optional[str], Query(min_length=1, max_length=100)] = None,
     author: Annotated[Optional[str], Query(min_length=1, max_length=100)] = None,
