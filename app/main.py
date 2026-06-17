@@ -113,7 +113,7 @@ async def lifespan(app: FastAPI):
     _migrate_is_sent(reports_engine)
     _migrate_save_at(reports_engine)
 
-    # 백그라운드 cache warming 시작
+    # cache warming
     warming_task = asyncio.create_task(_cache_warming_loop(app))
 
     yield
@@ -224,14 +224,19 @@ def _migrate_is_sent(engine) -> None:
             with engine.begin() as conn:
                 conn.execute(text(f"ALTER TABLE {tname} ADD COLUMN is_sent BOOLEAN DEFAULT false"))
                 logger.info("Migration: added is_sent column to %s", tname)
-        # 항상 동기화: main_ch_send_yn='Y' → is_sent=true
-        with engine.begin() as conn:
-            result = conn.execute(text(
-                f"UPDATE {tname} SET is_sent = (main_ch_send_yn = 'Y') "
-                f"WHERE (is_sent IS NULL) OR (is_sent != (main_ch_send_yn = 'Y'))"
-            ))
-            if result.rowcount > 0:
-                logger.info("Migration: synced is_sent for %d rows in %s", result.rowcount, tname)
+        # 29만건 UPDATE → startup blocking 방지 위해 background task
+        async def _sync_is_sent():
+            try:
+                with engine.begin() as conn:
+                    result = conn.execute(text(
+                        f"UPDATE {tname} SET is_sent = (main_ch_send_yn = 'Y') "
+                        f"WHERE (is_sent IS NULL) OR (is_sent != (main_ch_send_yn = 'Y'))"
+                    ))
+                    if result.rowcount > 0:
+                        logger.info("Migration: synced is_sent for %d rows in %s", result.rowcount, tname)
+            except Exception as e:
+                logger.warning("Migration is_sent sync failed: %s", e)
+        asyncio.ensure_future(_sync_is_sent())
 
 
 def _migrate_save_at(engine) -> None:
@@ -245,14 +250,18 @@ def _migrate_save_at(engine) -> None:
             with engine.begin() as conn:
                 conn.execute(text(f"ALTER TABLE {tname} ADD COLUMN save_at TIMESTAMPTZ"))
                 logger.info("Migration: added save_at column to %s", tname)
-        # save_time ISO 문자열 → save_at timestamp 변환
-        with engine.begin() as conn:
-            result = conn.execute(text(
-                f"UPDATE {tname} SET save_at = save_time::TIMESTAMPTZ "
-                f"WHERE save_at IS NULL AND save_time IS NOT NULL AND save_time != ''"
-            ))
-            if result.rowcount > 0:
-                logger.info("Migration: synced save_at for %d rows in %s", result.rowcount, tname)
+        async def _sync_save_at():
+            try:
+                with engine.begin() as conn:
+                    result = conn.execute(text(
+                        f"UPDATE {tname} SET save_at = save_time::TIMESTAMPTZ "
+                        f"WHERE save_at IS NULL AND save_time IS NOT NULL AND save_time != ''"
+                    ))
+                    if result.rowcount > 0:
+                        logger.info("Migration: synced save_at for %d rows in %s", result.rowcount, tname)
+            except Exception as e:
+                logger.warning("Migration save_at sync failed: %s", e)
+        asyncio.ensure_future(_sync_save_at())
 
 
 configure_sensitive_log_filter()
