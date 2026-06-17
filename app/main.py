@@ -109,8 +109,7 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=reports_engine)
     Base.metadata.create_all(bind=keywords_engine)
     _ensure_tags_columns(reports_engine)
-    _ensure_send_history_columns(reports_engine)
-    _drop_notifications_table(reports_engine)
+    _ensure_send_history_trigger(reports_engine)
 
     # 백그라운드 cache warming 시작
     warming_task = asyncio.create_task(_cache_warming_loop(app))
@@ -171,39 +170,45 @@ def _ensure_tags_columns(engine) -> None:
             pass  # 인덱스 중복 등은 무시
 
 
-def _ensure_send_history_columns(engine) -> None:
-    """tbl_report_send_history에 message 컬럼이 없으면 추가 (notifications → send-history 마이그레이션)"""
+def _ensure_send_history_trigger(engine) -> None:
+    """tbl_report_send_history INSERT 시 notifications로 자동 미러링하는 트리거 생성"""
     inspector = inspect(engine)
-    table_name = "tbl_report_send_history"
-    if table_name not in inspector.get_table_names():
+    if "tbl_report_send_history" not in inspector.get_table_names():
+        return
+    if "tbl_sec_reports_notifications" not in inspector.get_table_names():
         return
 
-    existing_columns = {column["name"] for column in inspector.get_columns(table_name)}
-    if "message" not in existing_columns:
-        with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE tbl_report_send_history ADD COLUMN message TEXT"))
-            logger.info("Migration: added message column to tbl_report_send_history")
-
-
-def _drop_notifications_table(engine) -> None:
-    """tbl_sec_reports_notifications 테이블이 비어있으면 삭제 (send-history로 마이그레이션 완료)"""
-    inspector = inspect(engine)
-    table_name = "tbl_sec_reports_notifications"
-    if table_name not in inspector.get_table_names():
-        return
-
-    # 레코드가 있는지 확인
     with engine.begin() as conn:
-        count = conn.execute(text(f"SELECT COUNT(*) FROM {table_name}")).scalar()
-        if count == 0:
-            conn.execute(text(f"DROP TABLE IF EXISTS {table_name}"))
-            logger.info("Migration: dropped empty tbl_sec_reports_notifications table")
-        else:
-            logger.warning(
-                "Migration: tbl_sec_reports_notifications has %d rows, skipping drop. "
-                "Migrate data to tbl_report_send_history manually.",
-                count,
-            )
+        conn.execute(text("""
+            CREATE OR REPLACE FUNCTION mirror_send_history_to_notifications()
+            RETURNS TRIGGER AS $$
+            BEGIN
+                INSERT INTO tbl_sec_reports_notifications (report_id, article_title, firm_nm, summary_model, message)
+                SELECT NEW.report_id,
+                       COALESCE(r.article_title, ''),
+                       COALESCE(r.firm_nm, ''),
+                       NULL,
+                       CASE WHEN NEW.keyword IS NOT NULL AND NEW.keyword != ''
+                            THEN '[텔레그램 · ' || NEW.keyword || '] ' || COALESCE(r.article_title, '')
+                            ELSE '[텔레그램] ' || COALESCE(r.article_title, '')
+                       END
+                FROM tbl_sec_reports r
+                WHERE r.report_id = NEW.report_id;
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+        """))
+        conn.execute(text("""
+            DO $$
+            BEGIN
+                CREATE TRIGGER trg_mirror_send_history
+                AFTER INSERT ON tbl_report_send_history
+                FOR EACH ROW EXECUTE FUNCTION mirror_send_history_to_notifications();
+            EXCEPTION WHEN duplicate_object THEN
+                NULL;
+            END $$;
+        """))
+    logger.info("Migration: send_history → notifications mirror trigger ensured")
 
 
 configure_sensitive_log_filter()

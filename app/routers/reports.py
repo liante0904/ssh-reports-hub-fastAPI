@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_reports_db
 from ..models import SecReport
-from ..schemas import SecReportResponse, ReportSentHistoryResponse
+from ..schemas import SecReportResponse, ReportNotificationResponse, ReportSentHistoryResponse
 
 router = APIRouter(tags=["reports"])
 
@@ -84,6 +84,31 @@ async def get_llm_setting():
     return {"visibility": visibility}
 
 
+@router.get("/reports/notifications", response_model=list[ReportNotificationResponse], summary="AI 요약 완료 알림 목록 조회")
+@router.get("/external/api/reports/notifications", response_model=list[ReportNotificationResponse], summary="AI 요약 완료 알림 목록 조회")
+async def get_summary_notifications(
+    limit: Annotated[int, Query(ge=1, le=100)] = 30,
+    db: Session = Depends(get_reports_db),
+):
+    """
+    tbl_sec_reports_notifications 기반 AI 요약 완료 알림.
+    필요한 모든 종류의 인앱 알림을 이 테이블에 push 하면 종버튼에 표시됩니다.
+    """
+    from ..models import ReportNotification
+    try:
+        notifications = (
+            db.query(ReportNotification)
+            .order_by(ReportNotification.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+        return notifications
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Failed to fetch notifications: {str(e)}")
+        return []
+
+
 @router.get("/reports/send-history", response_model=list[ReportSentHistoryResponse], summary="리포트 알림 내역 조회 (텔레그램 발송 + AI 요약 완료)")
 @router.get("/external/api/reports/send-history", response_model=list[ReportSentHistoryResponse], summary="리포트 알림 내역 조회 (텔레그램 발송 + AI 요약 완료)")
 async def get_send_history(
@@ -102,7 +127,6 @@ async def get_send_history(
                 ReportSentHistory.report_id,
                 ReportSentHistory.user_id,
                 ReportSentHistory.keyword,
-                ReportSentHistory.message,
                 ReportSentHistory.sent_at,
                 SecReport.article_title,
                 SecReport.firm_nm,
@@ -118,7 +142,6 @@ async def get_send_history(
                 report_id=row.report_id,
                 user_id=row.user_id,
                 keyword=row.keyword,
-                message=row.message,
                 sent_at=row.sent_at,
                 article_title=row.article_title,
                 firm_nm=row.firm_nm,
