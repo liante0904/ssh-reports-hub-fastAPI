@@ -112,6 +112,7 @@ async def lifespan(app: FastAPI):
     _ensure_send_history_trigger(reports_engine)
     _migrate_is_sent(reports_engine)
     _migrate_save_at(reports_engine)
+    _ensure_llm_view(reports_engine)
 
     # cache warming
     warming_task = asyncio.create_task(_cache_warming_loop(app))
@@ -262,6 +263,52 @@ def _migrate_save_at(engine) -> None:
             except Exception as e:
                 logger.warning("Migration save_at sync failed: %s", e)
         asyncio.ensure_future(_sync_save_at())
+
+
+def _ensure_llm_view(engine) -> None:
+    """LLM 친화적 컬럼명으로 tbl_sec_reports를 감싼 VIEW 생성 (PostgreSQL 전용)"""
+    if engine.dialect.name != "postgresql":
+        return
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE OR REPLACE VIEW v_reports AS SELECT
+                report_id,
+                sec_firm_order      AS broker_id,
+                firm_nm             AS broker_name,
+                article_board_order AS board_category_id,
+                mkt_tp              AS market_type,
+                article_title       AS title,
+                article_url         AS source_page_url,
+                key                 AS source_pdf_url,
+                download_url        AS source_pdf_url_fallback,
+                telegram_url        AS send_url,
+                pdf_url             AS canonical_pdf_url,
+                report_unique_key   AS dedupe_key,
+                reg_dt              AS published_date,
+                save_time           AS scraped_at,
+                save_at             AS scraped_at_tz,
+                writer              AS analyst_name,
+                gemini_summary      AS llm_summary,
+                summary_time        AS summary_created_at,
+                summary_model       AS summary_model,
+                is_sent             AS notification_sent,
+                main_ch_send_yn     AS main_channel_sent_legacy,
+                download_status_yn  AS pdf_download_status_legacy,
+                archive_path        AS archive_pdf_path,
+                tags                AS tags_json,
+                stock_names         AS stock_names_json,
+                sector              AS sector_name,
+                stock_tickers       AS stock_tickers_json,
+                target_price        AS target_price,
+                rating              AS rating,
+                revision_type       AS revision_type,
+                report_type         AS report_type,
+                retry_count         AS pdf_download_retry_count,
+                sync_status         AS archive_sync_status,
+                pdf_sync_status     AS pdf_sync_status_code
+            FROM tbl_sec_reports
+        """))
+        logger.info("Migration: v_reports LLM-friendly VIEW created/updated")
 
 
 configure_sensitive_log_filter()
