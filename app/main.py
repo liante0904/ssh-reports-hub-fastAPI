@@ -111,6 +111,7 @@ async def lifespan(app: FastAPI):
     _ensure_tags_columns(reports_engine)
     _ensure_send_history_trigger(reports_engine)
     _migrate_is_sent(reports_engine)
+    _migrate_save_at(reports_engine)
 
     # 백그라운드 cache warming 시작
     warming_task = asyncio.create_task(_cache_warming_loop(app))
@@ -231,6 +232,27 @@ def _migrate_is_sent(engine) -> None:
             ))
             if result.rowcount > 0:
                 logger.info("Migration: synced is_sent for %d rows in %s", result.rowcount, tname)
+
+
+def _migrate_save_at(engine) -> None:
+    """save_time (VARCHAR ISO) → save_at (TIMESTAMPTZ) 마이그레이션"""
+    inspector = inspect(engine)
+    for tname in ["tbl_sec_reports", "data_main_daily_send"]:
+        if tname not in inspector.get_table_names():
+            continue
+        cols = {c["name"] for c in inspector.get_columns(tname)}
+        if "save_at" not in cols:
+            with engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE {tname} ADD COLUMN save_at TIMESTAMPTZ"))
+                logger.info("Migration: added save_at column to %s", tname)
+        # save_time ISO 문자열 → save_at timestamp 변환
+        with engine.begin() as conn:
+            result = conn.execute(text(
+                f"UPDATE {tname} SET save_at = save_time::TIMESTAMPTZ "
+                f"WHERE save_at IS NULL AND save_time IS NOT NULL AND save_time != ''"
+            ))
+            if result.rowcount > 0:
+                logger.info("Migration: synced save_at for %d rows in %s", result.rowcount, tname)
 
 
 configure_sensitive_log_filter()

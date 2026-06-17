@@ -62,7 +62,8 @@ class SecReport(Base):
     is_sent = Column(Boolean, default=False)
     download_status_yn = Column(String, default="")
     download_url = Column(String)
-    save_time = Column(String)
+    save_time = Column(String)  # deprecated → save_at
+    save_at = Column(DateTime(timezone=True))
     reg_dt = Column(String, default="")
     writer = Column(String, default="")
     key = Column(String, unique=True)
