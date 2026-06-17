@@ -165,6 +165,7 @@ class ReportNotificationResponse(BaseModel):
     report_id: int
     article_title: str
     firm_nm: Optional[str] = None
+    sec_firm_order: Optional[int] = None
     summary_model: Optional[str] = None
     message: str
     pdf_url: Optional[str] = None

@@ -102,6 +102,7 @@ async def get_summary_notifications(
                 SecReport.pdf_url,
                 SecReport.telegram_url,
                 SecReport.article_url,
+                SecReport.sec_firm_order,
             )
             .outerjoin(SecReport, ReportNotification.report_id == SecReport.report_id)
             .order_by(ReportNotification.created_at.desc())
@@ -114,6 +115,7 @@ async def get_summary_notifications(
                 report_id=n.report_id,
                 article_title=n.article_title,
                 firm_nm=n.firm_nm,
+                sec_firm_order=sec_firm_order,
                 summary_model=n.summary_model,
                 message=n.message,
                 pdf_url=pdf_url,
@@ -121,7 +123,7 @@ async def get_summary_notifications(
                 article_url=article_url,
                 created_at=n.created_at,
             )
-            for n, pdf_url, telegram_url, article_url in rows
+            for n, pdf_url, telegram_url, article_url, sec_firm_order in rows
         ]
     except Exception as e:
         import logging
