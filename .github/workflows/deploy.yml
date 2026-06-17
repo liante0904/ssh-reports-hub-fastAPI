@@ -141,6 +141,10 @@ jobs:
 
             echo "Deploy target: $TARGET_COLOR (active: $OLD_COLOR)"
 
+            # 선제적 정리: 이전 배포 실패로 남은 stale 컨테이너가 있으면 강제 제거
+            docker rm -f "ssh-reports-hub-fastapi-$TARGET_COLOR" 2>/dev/null || true
+            docker compose rm -f "ssh-reports-hub-fastapi-$TARGET_COLOR" 2>/dev/null || true
+
             docker compose pull "ssh-reports-hub-fastapi-$TARGET_COLOR"
             docker compose up -d --no-build --force-recreate "ssh-reports-hub-fastapi-$TARGET_COLOR"
 
@@ -155,6 +159,7 @@ jobs:
                 echo "Health check failed. Rolling back new container."
                 docker compose stop "ssh-reports-hub-fastapi-$TARGET_COLOR" || true
                 docker compose rm -f "ssh-reports-hub-fastapi-$TARGET_COLOR" || true
+                docker rm -f "ssh-reports-hub-fastapi-$TARGET_COLOR" 2>/dev/null || true
                 exit 1
               fi
 
@@ -170,6 +175,7 @@ jobs:
             if [ "$OLD_COLOR" = "blue" ] || [ "$OLD_COLOR" = "green" ]; then
               docker compose stop "ssh-reports-hub-fastapi-$OLD_COLOR" || true
               docker compose rm -f "ssh-reports-hub-fastapi-$OLD_COLOR" || true
+              docker rm -f "ssh-reports-hub-fastapi-$OLD_COLOR" 2>/dev/null || true
             elif [ "$OLD_COLOR" = "prod" ]; then
               docker stop ssh-reports-hub-fastapi-prod || true
               docker rm ssh-reports-hub-fastapi-prod || true
