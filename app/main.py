@@ -222,8 +222,15 @@ def _migrate_is_sent(engine) -> None:
         if "is_sent" not in cols:
             with engine.begin() as conn:
                 conn.execute(text(f"ALTER TABLE {tname} ADD COLUMN is_sent BOOLEAN DEFAULT false"))
-                conn.execute(text(f"UPDATE {tname} SET is_sent = (main_ch_send_yn = 'Y') WHERE is_sent IS NULL"))
                 logger.info("Migration: added is_sent column to %s", tname)
+        # 항상 동기화: main_ch_send_yn='Y' → is_sent=true
+        with engine.begin() as conn:
+            result = conn.execute(text(
+                f"UPDATE {tname} SET is_sent = (main_ch_send_yn = 'Y') "
+                f"WHERE (is_sent IS NULL) OR (is_sent != (main_ch_send_yn = 'Y'))"
+            ))
+            if result.rowcount > 0:
+                logger.info("Migration: synced is_sent for %d rows in %s", result.rowcount, tname)
 
 
 configure_sensitive_log_filter()
