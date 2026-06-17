@@ -169,6 +169,7 @@ class ReportNotificationResponse(BaseModel):
     message: str
     pdf_url: Optional[str] = None
     telegram_url: Optional[str] = None
+    article_url: Optional[str] = None
     created_at: datetime
 
 
