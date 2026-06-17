@@ -94,15 +94,33 @@ async def get_summary_notifications(
     tbl_sec_reports_notifications 기반 AI 요약 완료 알림.
     필요한 모든 종류의 인앱 알림을 이 테이블에 push 하면 종버튼에 표시됩니다.
     """
-    from ..models import ReportNotification
+    from ..models import ReportNotification, SecReport
     try:
-        notifications = (
-            db.query(ReportNotification)
+        rows = (
+            db.query(
+                ReportNotification,
+                SecReport.pdf_url,
+                SecReport.telegram_url,
+            )
+            .outerjoin(SecReport, ReportNotification.report_id == SecReport.report_id)
             .order_by(ReportNotification.created_at.desc())
             .limit(limit)
             .all()
         )
-        return notifications
+        return [
+            ReportNotificationResponse(
+                id=n.id,
+                report_id=n.report_id,
+                article_title=n.article_title,
+                firm_nm=n.firm_nm,
+                summary_model=n.summary_model,
+                message=n.message,
+                pdf_url=pdf_url,
+                telegram_url=telegram_url,
+                created_at=n.created_at,
+            )
+            for n, pdf_url, telegram_url in rows
+        ]
     except Exception as e:
         import logging
         logging.getLogger(__name__).error(f"Failed to fetch notifications: {str(e)}")

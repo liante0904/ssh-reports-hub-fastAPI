@@ -167,6 +167,8 @@ class ReportNotificationResponse(BaseModel):
     firm_nm: Optional[str] = None
     summary_model: Optional[str] = None
     message: str
+    pdf_url: Optional[str] = None
+    telegram_url: Optional[str] = None
     created_at: datetime
 
 
