@@ -58,7 +58,8 @@ class SecReport(Base):
     firm_nm = Column(String)
     article_title = Column(String)
     article_url = Column(String)
-    main_ch_send_yn = Column(String)
+    main_ch_send_yn = Column(String)  # deprecated → is_sent
+    is_sent = Column(Boolean, default=False)
     download_status_yn = Column(String, default="")
     download_url = Column(String)
     save_time = Column(String)

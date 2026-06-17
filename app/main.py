@@ -110,6 +110,7 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=keywords_engine)
     _ensure_tags_columns(reports_engine)
     _ensure_send_history_trigger(reports_engine)
+    _migrate_is_sent(reports_engine)
 
     # 백그라운드 cache warming 시작
     warming_task = asyncio.create_task(_cache_warming_loop(app))
@@ -209,6 +210,20 @@ def _ensure_send_history_trigger(engine) -> None:
             END $$;
         """))
     logger.info("Migration: send_history → notifications mirror trigger ensured")
+
+
+def _migrate_is_sent(engine) -> None:
+    """main_ch_send_yn (VARCHAR Y/N) → is_sent (BOOLEAN) 마이그레이션"""
+    inspector = inspect(engine)
+    for tname in ["tbl_sec_reports", "data_main_daily_send"]:
+        if tname not in inspector.get_table_names():
+            continue
+        cols = {c["name"] for c in inspector.get_columns(tname)}
+        if "is_sent" not in cols:
+            with engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE {tname} ADD COLUMN is_sent BOOLEAN DEFAULT false"))
+                conn.execute(text(f"UPDATE {tname} SET is_sent = (main_ch_send_yn = 'Y') WHERE is_sent IS NULL"))
+                logger.info("Migration: added is_sent column to %s", tname)
 
 
 configure_sensitive_log_filter()
