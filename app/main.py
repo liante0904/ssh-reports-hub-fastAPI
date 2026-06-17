@@ -109,6 +109,8 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=reports_engine)
     Base.metadata.create_all(bind=keywords_engine)
     _ensure_tags_columns(reports_engine)
+    _ensure_send_history_columns(reports_engine)
+    _drop_notifications_table(reports_engine)
 
     # 백그라운드 cache warming 시작
     warming_task = asyncio.create_task(_cache_warming_loop(app))
@@ -167,6 +169,41 @@ def _ensure_tags_columns(engine) -> None:
                 conn.execute(text(index_sql))
         except Exception:
             pass  # 인덱스 중복 등은 무시
+
+
+def _ensure_send_history_columns(engine) -> None:
+    """tbl_report_send_history에 message 컬럼이 없으면 추가 (notifications → send-history 마이그레이션)"""
+    inspector = inspect(engine)
+    table_name = "tbl_report_send_history"
+    if table_name not in inspector.get_table_names():
+        return
+
+    existing_columns = {column["name"] for column in inspector.get_columns(table_name)}
+    if "message" not in existing_columns:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE tbl_report_send_history ADD COLUMN message TEXT"))
+            logger.info("Migration: added message column to tbl_report_send_history")
+
+
+def _drop_notifications_table(engine) -> None:
+    """tbl_sec_reports_notifications 테이블이 비어있으면 삭제 (send-history로 마이그레이션 완료)"""
+    inspector = inspect(engine)
+    table_name = "tbl_sec_reports_notifications"
+    if table_name not in inspector.get_table_names():
+        return
+
+    # 레코드가 있는지 확인
+    with engine.begin() as conn:
+        count = conn.execute(text(f"SELECT COUNT(*) FROM {table_name}")).scalar()
+        if count == 0:
+            conn.execute(text(f"DROP TABLE IF EXISTS {table_name}"))
+            logger.info("Migration: dropped empty tbl_sec_reports_notifications table")
+        else:
+            logger.warning(
+                "Migration: tbl_sec_reports_notifications has %d rows, skipping drop. "
+                "Migrate data to tbl_report_send_history manually.",
+                count,
+            )
 
 
 configure_sensitive_log_filter()

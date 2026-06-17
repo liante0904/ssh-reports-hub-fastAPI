@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_reports_db
 from ..models import SecReport
-from ..schemas import SecReportResponse, ReportNotificationResponse
+from ..schemas import SecReportResponse, ReportSentHistoryResponse
 
 router = APIRouter(tags=["reports"])
 
@@ -84,27 +84,50 @@ async def get_llm_setting():
     return {"visibility": visibility}
 
 
-@router.get("/reports/notifications", response_model=list[ReportNotificationResponse], summary="최신 AI 요약 완료 알림 목록 조회")
-@router.get("/external/api/reports/notifications", response_model=list[ReportNotificationResponse], summary="최신 AI 요약 완료 알림 목록 조회")
-async def get_summary_notifications(
+@router.get("/reports/send-history", response_model=list[ReportSentHistoryResponse], summary="리포트 알림 내역 조회 (텔레그램 발송 + AI 요약 완료)")
+@router.get("/external/api/reports/send-history", response_model=list[ReportSentHistoryResponse], summary="리포트 알림 내역 조회 (텔레그램 발송 + AI 요약 완료)")
+async def get_send_history(
     limit: Annotated[int, Query(ge=1, le=100)] = 30,
     db: Session = Depends(get_reports_db),
 ):
     """
-    최신 AI 요약 완료 알림 목록을 최근순으로 조회합니다.
+    tbl_report_send_history 기반 통합 알림 내역.
+    텔레그램 키워드 알림 발송 내역과 AI 요약 완료 알림을 최근순으로 조회합니다.
     """
-    from ..models import ReportNotification
+    from ..models import ReportSentHistory
     try:
-        notifications = (
-            db.query(ReportNotification)
-            .order_by(ReportNotification.created_at.desc())
+        rows = (
+            db.query(
+                ReportSentHistory.id,
+                ReportSentHistory.report_id,
+                ReportSentHistory.user_id,
+                ReportSentHistory.keyword,
+                ReportSentHistory.message,
+                ReportSentHistory.sent_at,
+                SecReport.article_title,
+                SecReport.firm_nm,
+            )
+            .outerjoin(SecReport, ReportSentHistory.report_id == SecReport.report_id)
+            .order_by(ReportSentHistory.sent_at.desc())
             .limit(limit)
             .all()
         )
-        return notifications
+        return [
+            ReportSentHistoryResponse(
+                id=row.id,
+                report_id=row.report_id,
+                user_id=row.user_id,
+                keyword=row.keyword,
+                message=row.message,
+                sent_at=row.sent_at,
+                article_title=row.article_title,
+                firm_nm=row.firm_nm,
+            )
+            for row in rows
+        ]
     except Exception as e:
         import logging
-        logging.getLogger(__name__).error(f"Failed to fetch notifications: {str(e)}")
+        logging.getLogger(__name__).error(f"Failed to fetch send history: {str(e)}")
         return []
 
 

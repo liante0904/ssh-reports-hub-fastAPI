@@ -176,20 +176,18 @@ async def trigger_summarize(
         )
         reports_db.commit()
 
-        # 알림 생성 및 저장
+        # 알림 생성 및 저장 → tbl_report_send_history (텔레그램 발송 내역과 통합)
         try:
-            from ..models import ReportNotification
-            notification = ReportNotification(
+            from ..models import ReportSentHistory
+            notification = ReportSentHistory(
                 report_id=report_id,
-                article_title=report.article_title or "",
-                firm_nm=report.firm_nm or "",
-                summary_model="gemini" if engine == "ag" else "deepseek",
-                message=f"[{report.firm_nm or '증권사'}] {report.article_title or '리포트'}의 AI 요약({ 'Gemini' if engine == 'ag' else 'DeepSeek' })이 완료되었습니다!"
+                user_id=0,  # 시스템 자동 생성 (0 = admin trigger)
+                keyword="AI 요약",
+                message=f"[{report.firm_nm or '증권사'}] {report.article_title or '리포트'}의 AI 요약({'Gemini' if engine == 'ag' else 'DeepSeek'})이 완료되었습니다!",
             )
             reports_db.add(notification)
             reports_db.commit()
         except Exception as e:
-            # 알림 테이블 기록 실패 시 로그를 남기고 요약 자체는 통과하도록 처리
             import logging
             logging.getLogger(__name__).error(f"Failed to save summary notification: {str(e)}")
 

@@ -158,14 +158,15 @@ class KeywordSyncRequest(BaseModel):
     keywords: List[str]
 
 
-class ReportNotificationResponse(BaseModel):
+class ReportSentHistoryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     report_id: int
-    article_title: str
+    user_id: Optional[int] = None
+    keyword: Optional[str] = None
+    message: Optional[str] = None
+    article_title: Optional[str] = None
     firm_nm: Optional[str] = None
-    summary_model: Optional[str] = None
-    message: str
-    created_at: datetime
+    sent_at: Optional[datetime] = None
 
