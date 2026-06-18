@@ -200,3 +200,11 @@ class ReportNotification(Base, TimestampMixin):
     summary_model = Column(String, nullable=True)  # deepseek or gemini
     message = Column(Text, nullable=False)
 
+
+class NotificationRead(Base, TimestampMixin):
+    """종버튼 알림 읽음 상태 (localStorage → DB 마이그레이션)"""
+    __tablename__ = "tbl_notification_reads"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(BigInteger, nullable=False, index=True)
+    notification_key = Column(String, nullable=False)  # telegram:12345 or summary:12345
+

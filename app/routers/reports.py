@@ -1,7 +1,8 @@
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Body
 from sqlalchemy.orm import Session, joinedload
+from ..dependencies import get_user_from_token
 
 from ..database import get_reports_db
 from ..models import SecReport
@@ -206,3 +207,52 @@ async def update_llm_setting_admin(
     except Exception as e:
         raise ServiceUnavailableException(f"Failed to save setting: {e}")
     return {"status": "success", "visibility": payload.visibility}
+
+
+# ── Notification Read Status (localStorage → DB) ──
+
+from ..models import NotificationRead, User
+
+
+@router.get("/reports/notifications/read-status", summary="알림 읽음 상태 조회")
+async def get_notification_reads(
+    user: User = Depends(get_user_from_token),
+    db: Session = Depends(get_reports_db),
+):
+    rows = db.query(NotificationRead.notification_key).filter(
+        NotificationRead.user_id == user.id
+    ).all()
+    return [r[0] for r in rows]
+
+
+@router.post("/reports/notifications/mark-read", summary="알림 읽음 처리")
+async def mark_notification_read(
+    notification_key: str = Body(..., embed=True),
+    user: User = Depends(get_user_from_token),
+    db: Session = Depends(get_reports_db),
+):
+    exists = db.query(NotificationRead).filter(
+        NotificationRead.user_id == user.id,
+        NotificationRead.notification_key == notification_key,
+    ).first()
+    if not exists:
+        db.add(NotificationRead(user_id=user.id, notification_key=notification_key))
+        db.commit()
+    return {"status": "ok"}
+
+
+@router.post("/reports/notifications/mark-all-read", summary="전체 읽음 처리")
+async def mark_all_notifications_read(
+    keys: list[str] = Body(..., embed=True),
+    user: User = Depends(get_user_from_token),
+    db: Session = Depends(get_reports_db),
+):
+    for key in keys:
+        exists = db.query(NotificationRead).filter(
+            NotificationRead.user_id == user.id,
+            NotificationRead.notification_key == key,
+        ).first()
+        if not exists:
+            db.add(NotificationRead(user_id=user.id, notification_key=key))
+    db.commit()
+    return {"status": "ok", "count": len(keys)}
