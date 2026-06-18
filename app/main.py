@@ -113,6 +113,7 @@ async def lifespan(app: FastAPI):
     _migrate_is_sent(reports_engine)
     _migrate_save_at(reports_engine)
     _ensure_llm_view(reports_engine)
+    _ensure_article_text_column(reports_engine)
 
     # cache warming
     warming_task = asyncio.create_task(_cache_warming_loop(app))
@@ -309,6 +310,19 @@ def _ensure_llm_view(engine) -> None:
             FROM tbl_sec_reports
         """))
         logger.info("Migration: v_reports LLM-friendly VIEW created/updated")
+
+
+def _ensure_article_text_column(engine) -> None:
+    """article_text TEXT 컬럼 추가 (증권사 view page 본문)"""
+    inspector = inspect(engine)
+    for tname in ["tbl_sec_reports", "data_main_daily_send"]:
+        if tname not in inspector.get_table_names():
+            continue
+        cols = {c["name"] for c in inspector.get_columns(tname)}
+        if "article_text" not in cols:
+            with engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE {tname} ADD COLUMN article_text TEXT"))
+                logger.info("Migration: added article_text column to %s", tname)
 
 
 configure_sensitive_log_filter()

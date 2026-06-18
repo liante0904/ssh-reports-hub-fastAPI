@@ -73,6 +73,7 @@ class SecReport(Base):
     summary_time = Column(String, nullable=True)
     summary_model = Column(String, nullable=True)
     archive_path = Column(String, nullable=True)
+    article_text = Column(Text, nullable=True)  # 증권사 view page 본문 텍스트
     retry_count = Column(Integer, default=0)
     sync_status = Column(Integer, default=0)
     pdf_url = Column(String, default="")
