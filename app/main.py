@@ -218,7 +218,7 @@ def _ensure_send_history_trigger(engine) -> None:
 def _migrate_is_sent(engine) -> None:
     """main_ch_send_yn (VARCHAR Y/N) → is_sent (BOOLEAN) 마이그레이션"""
     inspector = inspect(engine)
-    for tname in ["tbl_sec_reports", "data_main_daily_send"]:
+    for tname in ["tbl_sec_reports"]:
         if tname not in inspector.get_table_names():
             continue
         cols = {c["name"] for c in inspector.get_columns(tname)}
@@ -244,7 +244,7 @@ def _migrate_is_sent(engine) -> None:
 def _migrate_save_at(engine) -> None:
     """save_time (VARCHAR ISO) → save_at (TIMESTAMPTZ) 마이그레이션"""
     inspector = inspect(engine)
-    for tname in ["tbl_sec_reports", "data_main_daily_send"]:
+    for tname in ["tbl_sec_reports"]:
         if tname not in inspector.get_table_names():
             continue
         cols = {c["name"] for c in inspector.get_columns(tname)}
@@ -315,7 +315,7 @@ def _ensure_llm_view(engine) -> None:
 def _ensure_article_text_column(engine) -> None:
     """article_text TEXT 컬럼 추가 (증권사 view page 본문)"""
     inspector = inspect(engine)
-    for tname in ["tbl_sec_reports", "data_main_daily_send"]:
+    for tname in ["tbl_sec_reports"]:
         if tname not in inspector.get_table_names():
             continue
         cols = {c["name"] for c in inspector.get_columns(tname)}
