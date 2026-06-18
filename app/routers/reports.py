@@ -215,6 +215,7 @@ from ..models import NotificationRead, User
 
 
 @router.get("/reports/notifications/read-status", summary="알림 읽음 상태 조회")
+@router.get("/external/api/reports/notifications/read-status", summary="알림 읽음 상태 조회")
 async def get_notification_reads(
     user: User = Depends(get_user_from_token),
     db: Session = Depends(get_reports_db),
@@ -226,6 +227,7 @@ async def get_notification_reads(
 
 
 @router.post("/reports/notifications/mark-read", summary="알림 읽음 처리")
+@router.post("/external/api/reports/notifications/mark-read", summary="알림 읽음 처리")
 async def mark_notification_read(
     notification_key: str = Body(..., embed=True),
     user: User = Depends(get_user_from_token),
@@ -242,6 +244,7 @@ async def mark_notification_read(
 
 
 @router.post("/reports/notifications/mark-all-read", summary="전체 읽음 처리")
+@router.post("/external/api/reports/notifications/mark-all-read", summary="전체 읽음 처리")
 async def mark_all_notifications_read(
     keys: list[str] = Body(..., embed=True),
     user: User = Depends(get_user_from_token),
