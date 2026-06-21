@@ -149,7 +149,7 @@ def _report_to_api_item(report: SecReport, is_direct: bool = None) -> dict:
         "save_time": report.save_time,
         "reg_dt": report.reg_dt,
         "writer": report.writer,
-        "key": report.key,
+        "key": report.report_unique_key,
         "mkt_tp": report.mkt_tp,
         "article_title": report.article_title,
         "telegram_url": report.telegram_url,

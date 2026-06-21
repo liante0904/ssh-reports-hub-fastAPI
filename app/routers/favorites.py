@@ -87,7 +87,7 @@ async def get_favorites(
             "writer": report.writer,
             "reg_dt": report.reg_dt,
             "save_time": report.save_time,
-            "key": report.key,
+            "key": report.report_unique_key,
             "mkt_tp": report.mkt_tp,
             "gemini_summary": report.gemini_summary,
             "summary_time": report.summary_time,
