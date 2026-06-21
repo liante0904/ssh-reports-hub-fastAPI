@@ -66,7 +66,12 @@ class SecReport(Base):
     save_at = Column(DateTime(timezone=True))
     reg_dt = Column(String, default="")
     writer = Column(String, default="")
-    key = Column(String, unique=True)  # deprecated → report_unique_key
+    report_unique_key = Column(String, unique=True)
+    
+    @property
+    def key(self):
+        return self.report_unique_key
+        
     telegram_url = Column(String, default="")
     mkt_tp = Column(String, default="KR")
     gemini_summary = Column(String, nullable=True)
