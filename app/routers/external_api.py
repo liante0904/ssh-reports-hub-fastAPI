@@ -14,6 +14,10 @@ from ..schemas import CompanyResponse, BoardResponse
 # External API 라우터 — 프론트엔드가 직접 호출하는 공개 API
 router = APIRouter(prefix="/external/api", tags=["external-api"])
 
+
+def _sent_report_filter():
+    return or_(SecReport.is_sent == True, SecReport.main_ch_send_yn == "Y")
+
 @router.get("/companies", response_model=list[CompanyResponse], summary="증권사 정보 목록 조회 (리포트 존재 기준)")
 @cache_response(ttl=1800, prefix="api")  # 30분 캐시 (증권사 목록은 거의 변하지 않음)
 async def get_companies(request: Request, db: Session = Depends(get_reports_db)):
@@ -29,7 +33,7 @@ async def get_companies(request: Request, db: Session = Depends(get_reports_db))
     ).join(
         SecReport, SecFirmInfo.sec_firm_order == SecReport.sec_firm_order
     ).filter(
-        SecReport.is_sent == True
+        _sent_report_filter()
     ).group_by(
         SecFirmInfo.sec_firm_order,
         SecFirmInfo.sec_firm_name,
@@ -69,7 +73,7 @@ async def get_boards(
         SecReport, and_(
             SecBoardInfo.sec_firm_order == SecReport.sec_firm_order,
             SecBoardInfo.article_board_order == SecReport.article_board_order,
-            SecReport.is_sent == True
+            _sent_report_filter()
         )
     ).filter(
         SecBoardInfo.sec_firm_order == company
@@ -302,7 +306,7 @@ async def get_industry_reports(
         SecFirmInfo, SecReport.sec_firm_order == SecFirmInfo.sec_firm_order
     ).filter(
         or_(*board_filters),
-        SecReport.is_sent == True,
+        _sent_report_filter(),
     )
     # PostgreSQL 전용: 개별 종목코드 제외 (산업분석 게시판에 올라온 기업분석 필터링)
     if db.get_bind().dialect.name == "postgresql":
@@ -361,7 +365,7 @@ async def get_global_reports(
     query = db.query(SecReport, SecFirmInfo.is_direct_link).outerjoin(
         SecFirmInfo, SecReport.sec_firm_order == SecFirmInfo.sec_firm_order
     ).filter(
-        SecReport.is_sent == True,
+        _sent_report_filter(),
         SecReport.mkt_tp != "KR",
     )
 

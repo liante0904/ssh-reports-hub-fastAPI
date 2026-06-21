@@ -231,8 +231,8 @@ def _migrate_is_sent(engine) -> None:
             try:
                 with engine.begin() as conn:
                     result = conn.execute(text(
-                        f"UPDATE {tname} SET is_sent = (main_ch_send_yn = 'Y') "
-                        f"WHERE (is_sent IS NULL) OR (is_sent != (main_ch_send_yn = 'Y'))"
+                        f"UPDATE {tname} SET is_sent = true "
+                        f"WHERE main_ch_send_yn = 'Y' AND COALESCE(is_sent, false) = false"
                     ))
                     if result.rowcount > 0:
                         logger.info("Migration: synced is_sent for %d rows in %s", result.rowcount, tname)
