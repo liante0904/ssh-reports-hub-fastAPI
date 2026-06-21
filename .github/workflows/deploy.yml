@@ -155,7 +155,7 @@ jobs:
                 break
               fi
 
-              if [ "$i" -eq 12 ]; then
+              if [ "$i" -eq 24 ]; then
                 echo "Health check failed. Rolling back new container."
                 docker compose stop "ssh-reports-hub-fastapi-$TARGET_COLOR" || true
                 docker compose rm -f "ssh-reports-hub-fastapi-$TARGET_COLOR" || true
