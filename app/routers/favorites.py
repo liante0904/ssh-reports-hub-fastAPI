@@ -80,7 +80,7 @@ async def get_favorites(
             "firm_nm": report.firm_nm,
             "article_title": report.article_title,
             "article_url": report.article_url,
-            "main_ch_send_yn": report.main_ch_send_yn,
+            "is_sent": report.is_sent,
             "download_url": report.download_url,
             "pdf_url": report.pdf_url,
             "telegram_url": report.telegram_url,

@@ -367,3 +367,54 @@ def test_parse_date_and_dots_matching(db_session):
     db_session.refresh(sec_report)
     assert sec_report.fnguide_summary_id == 505
 
+
+def test_matcher_skips_blank_and_invalid_dates(db_session):
+    db_session.add_all([
+        FnGuideReportSummary(
+            summary_id=601,
+            company_name="삼성전자",
+            report_title="삼성전자 실적 전망",
+            report_date="",
+            provider="신한투자증권",
+            author="홍길동",
+            summary_text="빈 날짜 데이터",
+            report_key="key_601",
+        ),
+        FnGuideReportSummary(
+            summary_id=602,
+            company_name="삼성전자",
+            report_title="삼성전자 실적 전망",
+            report_date="not-a-date",
+            provider="신한투자증권",
+            author="홍길동",
+            summary_text="잘못된 날짜 데이터",
+            report_key="key_602",
+        ),
+        SecReport(
+            report_id=60,
+            sec_firm_order=1,
+            article_board_order=0,
+            firm_nm="신한투자증권",
+            article_title="삼성전자 실적 전망",
+            reg_dt="",
+            writer="홍길동",
+            stock_names=json.dumps(["삼성전자"]),
+        ),
+        SecReport(
+            report_id=61,
+            sec_firm_order=1,
+            article_board_order=0,
+            firm_nm="신한투자증권",
+            article_title="삼성전자 실적 전망",
+            reg_dt="invalid",
+            writer="홍길동",
+            stock_names=json.dumps(["삼성전자"]),
+        ),
+    ])
+    db_session.commit()
+
+    result = FnGuideMatcher(db_session).match_pending_reports(limit=10)
+
+    assert result["status"] == "success"
+    assert result["matched_count"] == 0
+    assert result["total_processed"] == 2
