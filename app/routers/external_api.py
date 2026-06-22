@@ -16,7 +16,7 @@ router = APIRouter(prefix="/external/api", tags=["external-api"])
 
 
 def _sent_report_filter():
-    return or_(SecReport.is_sent == True, SecReport.main_ch_send_yn == "Y")
+    return SecReport.telegram_sent == True
 
 @router.get("/companies", response_model=list[CompanyResponse], summary="증권사 정보 목록 조회 (리포트 존재 기준)")
 @cache_response(ttl=1800, prefix="api")  # 30분 캐시 (증권사 목록은 거의 변하지 않음)
@@ -144,7 +144,7 @@ def _report_to_api_item(report: SecReport, is_direct: bool = None) -> dict:
         "firm_nm": report.firm_nm,
         "is_direct": is_direct,
         "send_user": None,
-        "main_ch_send_yn": report.main_ch_send_yn,
+        "telegram_sent": report.telegram_sent,
         "download_status_yn": None,
         "save_time": report.save_time,
         "reg_dt": report.reg_dt,

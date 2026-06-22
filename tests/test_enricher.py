@@ -78,19 +78,19 @@ def _seed_data(db):
             report_id=1, sec_firm_order=0, article_board_order=0,
             firm_nm="LS증권", article_title="삼성전자 (005930) - 1Q25 Review: 메모리 반등 시작",
             writer="홍길동", key="key1", reg_dt="20250501", save_time="2025-05-01T10:00:00",
-            main_ch_send_yn="Y", tags='["반도체", "실적 리뷰"]', stock_names='["삼성전자"]', sector="반도체",
+            telegram_sent=True, tags='["반도체", "실적 리뷰"]', stock_names='["삼성전자"]', sector="반도체",
         ),
         SecReport(
             report_id=2, sec_firm_order=4, article_board_order=0,
             firm_nm="KB증권", article_title="[2H26 산업 전망] 바이오; 트리거의 시작",
             writer="김철수", key="key2", reg_dt="20250502", save_time="2025-05-02T10:00:00",
-            main_ch_send_yn="Y", tags='["바이오", "산업 분석"]', stock_names="[]", sector="바이오/헬스케어",
+            telegram_sent=True, tags='["바이오", "산업 분석"]', stock_names="[]", sector="바이오/헬스케어",
         ),
         SecReport(
             report_id=3, sec_firm_order=0, article_board_order=0,
             firm_nm="LS증권", article_title="Daily Brief - 시장 동향",
             writer="이영희", key="key3", reg_dt="20250503", save_time="2025-05-03T10:00:00",
-            main_ch_send_yn="N", tags="[]", stock_names="[]", sector="",
+            telegram_sent=False, tags="[]", stock_names="[]", sector="",
         ),
     ])
     db.commit()

@@ -1,7 +1,7 @@
 import os
 from sqlalchemy import create_engine, select, and_, not_, func
 from sqlalchemy.orm import declarative_base
-from sqlalchemy import Column, String, Integer
+from sqlalchemy import Column, String, Integer, Boolean
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -15,7 +15,7 @@ class SecReport(Base):
     article_title = Column(String)
     sec_firm_order = Column(Integer)
     article_board_order = Column(Integer)
-    main_ch_send_yn = Column(String)
+    telegram_sent = Column(Boolean, default=False)
 
 with engine.connect() as conn:
     # 1. Using regexp_match with not_
@@ -23,7 +23,7 @@ with engine.connect() as conn:
         and_(
             SecReport.sec_firm_order == 19,
             SecReport.article_board_order == 0,
-            SecReport.main_ch_send_yn == 'Y',
+            SecReport.telegram_sent == True,
             not_(SecReport.article_title.regexp_match(r'\([0-9]{5,6}\)'))
         )
     )
@@ -35,7 +35,7 @@ with engine.connect() as conn:
         and_(
             SecReport.sec_firm_order == 19,
             SecReport.article_board_order == 0,
-            SecReport.main_ch_send_yn == 'Y',
+            SecReport.telegram_sent == True,
             SecReport.article_title.op("!~")(r"\([0-9]{5,6}\)")
         )
     )

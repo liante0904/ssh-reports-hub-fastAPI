@@ -95,7 +95,7 @@ def test_fnguide_matcher_logic(db_session):
         firm_nm="신한금융투자",
         article_title="삼성전자 2분기 호실적 기대감",
         reg_dt="20260604",
-        main_ch_send_yn="Y",
+        telegram_sent=True,
         writer="홍길동",
         stock_names=json.dumps(["삼성전자"]),
     )
@@ -107,7 +107,7 @@ def test_fnguide_matcher_logic(db_session):
         firm_nm="하나증권",
         article_title="삼성전자 2분기 호실적 기대감",
         reg_dt="20260604",
-        main_ch_send_yn="Y",
+        telegram_sent=True,
         writer="홍길동",
         stock_names=json.dumps(["삼성전자"]),
     )
@@ -119,7 +119,7 @@ def test_fnguide_matcher_logic(db_session):
         firm_nm="신한금융투자",
         article_title="삼성전자 2분기 호실적 기대감",
         reg_dt="20260601",  # 6월 1일은 6월 5일 기준 +-1일 범위 밖
-        main_ch_send_yn="Y",
+        telegram_sent=True,
         writer="홍길동",
         stock_names=json.dumps(["삼성전자"]),
     )
@@ -169,7 +169,7 @@ async def test_trigger_fnguide_match_api(client, db_session):
         firm_nm="이베스트투자증권",  # LS증권의 구명칭/동의어
         article_title="현대차 실적 맑음",
         reg_dt="20260605",
-        main_ch_send_yn="Y",
+        telegram_sent=True,
         writer="김철수",
         stock_names=json.dumps(["현대차"]),
     )
@@ -228,7 +228,7 @@ async def test_trigger_fnguide_match_internal_api(client, db_session):
         firm_nm="LS증권",
         article_title="삼성전자 2분기 실적 서프라이즈 예고",
         reg_dt="20260605",
-        main_ch_send_yn="Y",
+        telegram_sent=True,
         writer="김철수",
         stock_names=json.dumps(["삼성전자"]),
     )
@@ -292,7 +292,7 @@ async def test_get_report_summaries_with_matched_sec_reports(client, db_session)
         firm_nm="메리츠증권",
         article_title="LG엔솔 실적 분석",
         reg_dt="20260605",
-        main_ch_send_yn="Y",
+        telegram_sent=True,
         writer="이철희",
         stock_names=json.dumps(["LG에너지솔루션"]),
         fnguide_summary_id=303,  # 수동 매핑
@@ -349,7 +349,7 @@ def test_parse_date_and_dots_matching(db_session):
         firm_nm="하나투자증권",  # 정규화되어 '하나'로 매칭 예정
         article_title="현대차 실적 분석 및 전망",
         reg_dt="20260608",  # YYYYMMDD 형태
-        main_ch_send_yn="Y",
+        telegram_sent=True,
         writer="김철수",
         stock_names=json.dumps(["현대자동차"]),
     )

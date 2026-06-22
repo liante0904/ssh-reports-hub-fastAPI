@@ -58,8 +58,8 @@ class SecReport(Base):
     firm_nm = Column(String)
     article_title = Column(String)
     article_url = Column(String)
-    main_ch_send_yn = Column(String)  # deprecated → is_sent
-    is_sent = Column(Boolean, default=False)
+    main_ch_send_yn = Column(String)  # deprecated (읽기전용)
+    telegram_sent = Column(Boolean, default=False)  # CANONICAL
     download_status_yn = Column(String, default="")
     download_url = Column(String)
     save_time = Column(String)  # deprecated → save_at

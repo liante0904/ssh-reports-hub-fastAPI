@@ -1,7 +1,7 @@
 import os
 from sqlalchemy import create_engine, select, and_, or_, not_, func
 from sqlalchemy.orm import declarative_base
-from sqlalchemy import Column, String, Integer
+from sqlalchemy import Column, String, Integer, Boolean
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -15,7 +15,7 @@ class SecReport(Base):
     article_title = Column(String)
     sec_firm_order = Column(Integer)
     article_board_order = Column(Integer)
-    main_ch_send_yn = Column(String)
+    telegram_sent = Column(Boolean, default=False)
 
 INDUSTRY_REPORT_BOARD_FILTERS = (
     (0, (2,)),                     # LS증권 산업분석
@@ -51,7 +51,7 @@ with engine.connect() as conn:
     stmt = select(func.count()).select_from(SecReport).where(
         and_(
             or_(*board_filters),
-            SecReport.main_ch_send_yn == "Y",
+            SecReport.telegram_sent == True,
             SecReport.sec_firm_order == 19
         )
     )
