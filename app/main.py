@@ -216,45 +216,16 @@ def _ensure_send_history_trigger(engine) -> None:
 
 
 def _migrate_telegram_sent(engine) -> None:
-    """main_ch_send_yn/is_sent → telegram_sent (BOOLEAN) 마이그레이션"""
+    """telegram_sent (BOOLEAN) 컬럼 보장 마이그레이션 (is_sent/main_ch_send_yn legacy 제거 완료)"""
     inspector = inspect(engine)
     for tname in ["tbl_sec_reports"]:
         if tname not in inspector.get_table_names():
             continue
         cols = {c["name"] for c in inspector.get_columns(tname)}
-        
-        # 1) telegram_sent 컬럼이 없으면 생성
         if "telegram_sent" not in cols:
             with engine.begin() as conn:
                 conn.execute(text(f"ALTER TABLE {tname} ADD COLUMN telegram_sent BOOLEAN DEFAULT false"))
                 logger.info("Migration: added telegram_sent column to %s", tname)
-        
-        # 2) 데이터 이전 배치 (background task)
-        async def _sync_telegram_sent():
-            try:
-                with engine.begin() as conn:
-                    # 기존 is_sent -> telegram_sent 복사 및 리셋
-                    if "is_sent" in cols:
-                        res1 = conn.execute(text(
-                            f"UPDATE {tname} SET telegram_sent = true "
-                            f"WHERE is_sent = true AND COALESCE(telegram_sent, false) = false"
-                        ))
-                        if res1.rowcount > 0:
-                            logger.info("Migration: copied %d rows from is_sent to telegram_sent in %s", res1.rowcount, tname)
-                        
-                        # is_sent=false 리셋
-                        conn.execute(text(f"UPDATE {tname} SET is_sent = false WHERE is_sent = true"))
-
-                    # main_ch_send_yn='Y' -> telegram_sent=true 복사
-                    res2 = conn.execute(text(
-                        f"UPDATE {tname} SET telegram_sent = true "
-                        f"WHERE main_ch_send_yn = 'Y' AND COALESCE(telegram_sent, false) = false"
-                    ))
-                    if res2.rowcount > 0:
-                        logger.info("Migration: synced telegram_sent from main_ch_send_yn for %d rows in %s", res2.rowcount, tname)
-            except Exception as e:
-                logger.warning("Migration telegram_sent sync failed: %s", e)
-        asyncio.ensure_future(_sync_telegram_sent())
 
 
 def _migrate_save_at(engine) -> None:
@@ -309,7 +280,6 @@ def _ensure_llm_view(engine) -> None:
                 summary_time        AS summary_created_at,
                 summary_model       AS summary_model,
                 telegram_sent       AS notification_sent,
-                main_ch_send_yn     AS main_channel_sent_legacy,
                 download_status_yn  AS pdf_download_status_legacy,
                 archive_path        AS archive_pdf_path,
                 tags                AS tags_json,
