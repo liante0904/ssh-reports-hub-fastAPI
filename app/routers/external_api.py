@@ -519,3 +519,61 @@ async def invalidate_cache(
     _verify_internal_token(x_internal_token)
     deleted = await invalidate_prefix(prefix)
     return {"status": "ok", "deleted_keys": deleted}
+
+
+@router.get("/internal/ls-existing-keys", summary="[Internal] LS증권 기존 key + writer 목록 조회")
+async def get_ls_existing_keys(
+    x_internal_token: Annotated[Optional[str], Header()] = None,
+):
+    """
+    GA LS scraper v2가 기존 DB key 목록을 조회하여 중복 스크래핑을 방지.
+    writer(사원명) 정보도 함께 반환 → detail 페이지 없이도 msg URL 재구성 가능.
+
+    사용 예 (GA workflow):
+        curl -H "X-Internal-Token: $INTERNAL_CACHE_TOKEN" \\
+             https://ssh-oci.duckdns.org/external/api/internal/ls-existing-keys \\
+             > ls_existing_keys.json
+    """
+    _verify_internal_token(x_internal_token)
+
+    import psycopg2
+    from urllib.parse import urlparse
+
+    db_host = os.getenv("POSTGRES_HOST_REPORTS", "main-postgres")
+    db_port = os.getenv("POSTGRES_PORT_REPORTS", "5432")
+    db_user = os.getenv("POSTGRES_USER_REPORTS", "ssh_reports_hub")
+    db_password = os.getenv("POSTGRES_PASSWORD_REPORTS", "")
+    db_name = os.getenv("POSTGRES_DB_REPORTS", "ssh_reports_hub")
+
+    conn = psycopg2.connect(
+        host=db_host, port=db_port, user=db_user,
+        password=db_password, dbname=db_name,
+    )
+    try:
+        with conn.cursor() as cur:
+            # LS증권(sec_firm_order=0)의 모든 key + writer 조회
+            cur.execute("""
+                SELECT key, writer, article_title
+                FROM tbl_sec_reports
+                WHERE sec_firm_order = 0 AND key IS NOT NULL AND key != ''
+                ORDER BY key
+            """)
+            rows = cur.fetchall()
+
+            keys = []
+            key_writer_map = {}
+            for row in rows:
+                k = row[0]
+                w = row[1] or ""
+                keys.append(k)
+                if w and k not in key_writer_map:
+                    key_writer_map[k] = w
+
+        return {
+            "status": "ok",
+            "count": len(keys),
+            "keys": keys,
+            "key_writer_map": key_writer_map,
+        }
+    finally:
+        conn.close()
