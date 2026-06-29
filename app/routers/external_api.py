@@ -1,4 +1,3 @@
-import json
 import os
 from typing import Annotated, Optional
 
@@ -9,7 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 from ..cache import cache_response, invalidate_prefix
 from ..database import get_reports_db
 from ..models import SecReport, SecFirmInfo, SecBoardInfo, PdfArchive
-from ..schemas import CompanyResponse, BoardResponse
+from ..schemas import CompanyResponse, BoardResponse, SecReportResponse
 
 # External API 라우터 — 프론트엔드가 직접 호출하는 공개 API
 router = APIRouter(prefix="/external/api", tags=["external-api"])
@@ -119,92 +118,22 @@ INDUSTRY_REPORT_BOARD_FILTERS = (
 )
 
 
-def _parse_json_field(value):
-    """JSONB/list/str 어떤 타입으로 오든 list로 정규화"""
-    if value is None or value == '':
-        return []
-    if isinstance(value, list):
-        return value
-    if isinstance(value, str):
-        try:
-            parsed = json.loads(value)
-            return parsed if isinstance(parsed, list) else []
-        except (json.JSONDecodeError, TypeError):
-            return []
-    return []
-
 
 def _report_to_api_item(report: SecReport, is_direct: bool = None) -> dict:
-    archive = report.pdf_archive
-    tags = _parse_json_field(report.tags)
-    stock_names = _parse_json_field(report.stock_names)
-    sector = report.sector or ''
-    item = {
-        "report_id": report.report_id,
-        "sec_firm_order": report.sec_firm_order,
-        "article_board_order": report.article_board_order,
-        "firm_nm": report.firm_nm,
-        "is_direct": is_direct,
-        "send_user": None,
-        "telegram_sent": report.telegram_sent,
-        "download_status_yn": None,
-        "save_time": report.save_time,
-        "reg_dt": report.reg_dt,
-        "writer": report.writer,
-        "key": report.report_unique_key,
-        "mkt_tp": report.mkt_tp,
-        "article_title": report.article_title,
-        "telegram_url": report.telegram_url,
-        "article_url": report.article_url,
-        "download_url": report.download_url,
-        "pdf_url": report.pdf_url,
-        "gemini_summary": report.gemini_summary,
-        "summary_time": report.summary_time,
-        "summary_model": report.summary_model,
-        "tags": tags,
-        "stock_names": stock_names,
-        "sector": sector,
-    }
-    # PDF 아카이브 컬럼 추가
-    if archive:
-        item["pdf_archive"] = {
-            "file_path": archive.file_path,
-            "file_size": archive.file_size,
-            "page_count": archive.page_count,
-            "archive_status": archive.archive_status,
-            "file_name": archive.file_name,
-            "has_text": archive.has_text,
-            "is_encrypted": archive.is_encrypted,
-            "storage_backend": archive.storage_backend,
-            "storage_key": archive.storage_key,
-            "author": archive.author,
-            "created_at": archive.created_at.isoformat() if archive.created_at else None,
-            "updated_at": archive.updated_at.isoformat() if archive.updated_at else None,
-            "last_accessed_at": archive.last_accessed_at.isoformat() if archive.last_accessed_at else None,
-        }
-    else:
-        item["pdf_archive"] = None
-
-    # FnGuide 요약 정보 추가 (LEFT JOIN 결과물)
-    fnguide = report.fnguide_summary
-    if fnguide:
-        item["fnguide_summary"] = {
-            "summary_id": fnguide.summary_id,
-            "report_title": fnguide.report_title,
-            "report_date": fnguide.report_date,
-            "company_name": fnguide.company_name,
-            "company_code": fnguide.company_code,
-            "summary_text": fnguide.summary_text,
-            "opinion": fnguide.opinion,
-            "target_price": fnguide.target_price,
-            "prev_close": fnguide.prev_close,
-            "provider": fnguide.provider,
-            "author": fnguide.author,
-            "pdf_url": fnguide.pdf_url,
-        }
-    else:
-        item["fnguide_summary"] = None
-
+    item = SecReportResponse.model_validate(report).model_dump(mode="json")
+    if is_direct is not None:
+        item["is_direct"] = is_direct
+    # Legacy fields not yet in SecReportResponse schema
+    item["send_user"] = None
+    item["download_status_yn"] = None
+    item["save_time"] = report.save_time
+    item["key"] = report.report_unique_key
+    item["mkt_tp"] = report.mkt_tp
+    item["article_url"] = report.article_url
+    item["download_url"] = report.download_url
+    item["summary_time"] = report.summary_time
+    item["summary_model"] = report.summary_model
+    item["telegram_sent"] = report.telegram_sent
     return item
 
 
