@@ -149,14 +149,24 @@ jobs:
             docker compose up -d --no-build --force-recreate "ssh-reports-hub-fastapi-$TARGET_COLOR"
 
             echo "Health check..."
+            # uvicorn 초기화 여유 시간 (DB 연결, 모듈 import 등)
+            sleep 3
+
+            HEALTH_PASSED=0
             for i in $(seq 1 24); do
               if docker exec external-nginx wget -q -O /dev/null "http://ssh-reports-hub-fastapi-$TARGET_COLOR:8000/health"; then
-                echo "Health check passed"
+                echo "Health check passed on attempt $i"
+                HEALTH_PASSED=1
                 break
               fi
 
+              echo "Health check attempt $i/24 failed, waiting 5s..."
+
               if [ "$i" -eq 24 ]; then
-                echo "Health check failed. Rolling back new container."
+                echo "==== CONTAINER STARTUP LOG (last 60 lines) ===="
+                docker logs "ssh-reports-hub-fastapi-$TARGET_COLOR" --tail 60 2>&1 || true
+                echo "==== END OF LOG ===="
+                echo "Health check failed after 24 attempts. Rolling back."
                 docker compose stop "ssh-reports-hub-fastapi-$TARGET_COLOR" || true
                 docker compose rm -f "ssh-reports-hub-fastapi-$TARGET_COLOR" || true
                 docker rm -f "ssh-reports-hub-fastapi-$TARGET_COLOR" 2>/dev/null || true
