@@ -182,37 +182,40 @@ def _ensure_send_history_trigger(engine) -> None:
     if "tbl_sec_reports_notifications" not in inspector.get_table_names():
         return
 
-    with engine.begin() as conn:
-        conn.execute(text("""
-            CREATE OR REPLACE FUNCTION mirror_send_history_to_notifications()
-            RETURNS TRIGGER AS $$
-            BEGIN
-                INSERT INTO tbl_sec_reports_notifications (report_id, article_title, firm_nm, summary_model, message)
-                SELECT NEW.report_id,
-                       COALESCE(r.article_title, ''),
-                       COALESCE(r.firm_nm, ''),
-                       NULL,
-                       CASE WHEN NEW.keyword IS NOT NULL AND NEW.keyword != ''
-                            THEN '[텔레그램 · ' || NEW.keyword || '] ' || COALESCE(r.article_title, '')
-                            ELSE '[텔레그램] ' || COALESCE(r.article_title, '')
-                       END
-                FROM tbl_sec_reports r
-                WHERE r.report_id = NEW.report_id;
-                RETURN NEW;
-            END;
-            $$ LANGUAGE plpgsql;
-        """))
-        conn.execute(text("""
-            DO $$
-            BEGIN
-                CREATE TRIGGER trg_mirror_send_history
-                AFTER INSERT ON tbl_report_send_history
-                FOR EACH ROW EXECUTE FUNCTION mirror_send_history_to_notifications();
-            EXCEPTION WHEN duplicate_object THEN
-                NULL;
-            END $$;
-        """))
-    logger.info("Migration: send_history → notifications mirror trigger ensured")
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("""
+                CREATE OR REPLACE FUNCTION mirror_send_history_to_notifications()
+                RETURNS TRIGGER AS $$
+                BEGIN
+                    INSERT INTO tbl_sec_reports_notifications (report_id, article_title, firm_nm, summary_model, message)
+                    SELECT NEW.report_id,
+                           COALESCE(r.article_title, ''),
+                           COALESCE(r.firm_nm, ''),
+                           NULL,
+                           CASE WHEN NEW.keyword IS NOT NULL AND NEW.keyword != ''
+                                THEN '[텔레그램 · ' || NEW.keyword || '] ' || COALESCE(r.article_title, '')
+                                ELSE '[텔레그램] ' || COALESCE(r.article_title, '')
+                           END
+                    FROM tbl_sec_reports r
+                    WHERE r.report_id = NEW.report_id;
+                    RETURN NEW;
+                END;
+                $$ LANGUAGE plpgsql;
+            """))
+            conn.execute(text("""
+                DO $$
+                BEGIN
+                    CREATE TRIGGER trg_mirror_send_history
+                    AFTER INSERT ON tbl_report_send_history
+                    FOR EACH ROW EXECUTE FUNCTION mirror_send_history_to_notifications();
+                EXCEPTION WHEN duplicate_object THEN
+                    NULL;
+                END $$;
+            """))
+        logger.info("Migration: send_history → notifications mirror trigger ensured")
+    except Exception as exc:
+        logger.warning("Could not ensure send_history trigger (non-fatal): %s", exc)
 
 
 def _migrate_telegram_sent(engine) -> None:
@@ -257,45 +260,48 @@ def _ensure_llm_view(engine) -> None:
     """LLM 친화적 컬럼명으로 tbl_sec_reports를 감싼 VIEW 생성 (PostgreSQL 전용)"""
     if engine.dialect.name != "postgresql":
         return
-    with engine.begin() as conn:
-        conn.execute(text("""
-            CREATE OR REPLACE VIEW v_reports AS SELECT
-                report_id,
-                sec_firm_order      AS broker_id,
-                firm_nm             AS broker_name,
-                article_board_order AS board_category_id,
-                mkt_tp              AS market_type,
-                article_title       AS title,
-                article_url         AS source_page_url,
-                key                 AS report_unique_key,
-                download_url        AS source_pdf_url_fallback,
-                telegram_url        AS send_url,
-                pdf_url             AS canonical_pdf_url,
-                report_unique_key   AS raw_unique_key,
-                reg_dt              AS published_date,
-                save_time           AS scraped_at,
-                save_at             AS scraped_at_tz,
-                writer              AS analyst_name,
-                gemini_summary      AS llm_summary,
-                summary_time        AS summary_created_at,
-                summary_model       AS summary_model,
-                telegram_sent       AS notification_sent,
-                download_status_yn  AS pdf_download_status_legacy,
-                archive_path        AS archive_pdf_path,
-                tags                AS tags_json,
-                stock_names         AS stock_names_json,
-                sector              AS sector_name,
-                stock_tickers       AS stock_tickers_json,
-                target_price        AS target_price,
-                rating              AS rating,
-                revision_type       AS revision_type,
-                report_type         AS report_type,
-                retry_count         AS pdf_download_retry_count,
-                sync_status         AS archive_sync_status,
-                pdf_sync_status     AS pdf_sync_status_code
-            FROM tbl_sec_reports
-        """))
-        logger.info("Migration: v_reports LLM-friendly VIEW created/updated")
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("""
+                CREATE OR REPLACE VIEW v_reports AS SELECT
+                    report_id,
+                    sec_firm_order      AS broker_id,
+                    firm_nm             AS broker_name,
+                    article_board_order AS board_category_id,
+                    mkt_tp              AS market_type,
+                    article_title       AS title,
+                    article_url         AS source_page_url,
+                    key                 AS report_unique_key,
+                    download_url        AS source_pdf_url_fallback,
+                    telegram_url        AS send_url,
+                    pdf_url             AS canonical_pdf_url,
+                    report_unique_key   AS raw_unique_key,
+                    reg_dt              AS published_date,
+                    save_time           AS scraped_at,
+                    save_at             AS scraped_at_tz,
+                    writer              AS analyst_name,
+                    gemini_summary      AS llm_summary,
+                    summary_time        AS summary_created_at,
+                    summary_model       AS summary_model,
+                    telegram_sent       AS notification_sent,
+                    download_status_yn  AS pdf_download_status_legacy,
+                    archive_path        AS archive_pdf_path,
+                    tags                AS tags_json,
+                    stock_names         AS stock_names_json,
+                    sector              AS sector_name,
+                    stock_tickers       AS stock_tickers_json,
+                    target_price        AS target_price,
+                    rating              AS rating,
+                    revision_type       AS revision_type,
+                    report_type         AS report_type,
+                    retry_count         AS pdf_download_retry_count,
+                    sync_status         AS archive_sync_status,
+                    pdf_sync_status     AS pdf_sync_status_code
+                FROM tbl_sec_reports
+            """))
+            logger.info("Migration: v_reports LLM-friendly VIEW created/updated")
+    except Exception as exc:
+        logger.warning("Could not ensure llm VIEW (non-fatal): %s", exc)
 
 
 def _ensure_article_text_column(engine) -> None:
