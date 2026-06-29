@@ -1,7 +1,7 @@
 import json
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 class PdfArchiveResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -88,7 +88,7 @@ class SecReportResponse(BaseModel):
     tags: Optional[list[str]] = None
     stock_names: Optional[list[str]] = None
     sector: Optional[str] = None
-    
+
     # ── 프리미엄 5대 속성 스키마 선언 ──────────────────
     target_price: Optional[float] = None          # 목표주가
     rating: Optional[str] = None                  # 투자의견 (BUY, HOLD 등)
@@ -96,7 +96,35 @@ class SecReportResponse(BaseModel):
     report_type: Optional[str] = None             # 리포트 분류 (COMPANY, INDUSTRY 등)
     stock_tickers: Optional[list[str]] = None     # 6자리 표준 종목코드 리스트
     # ──────────────────────────────────────────────────
-    
+
+    # ── 증권사/게시판 식별자 (deprecated → firm_id / board_id로 전환 예정) ──
+    # ORM 물리 컬럼명(sec_firm_order, article_board_order)을 그대로 노출하되
+    # deprecated 표시를 달아 클라이언트가 새 이름으로 점진 마이그레이션할 수 있도록 한다.
+    sec_firm_order: Optional[int] = Field(
+        default=None,
+        deprecated=True,
+        description="[Deprecated] use firm_id instead. Will be removed in a future release.",
+    )
+    article_board_order: Optional[int] = Field(
+        default=None,
+        deprecated=True,
+        description="[Deprecated] use board_id instead. Will be removed in a future release.",
+    )
+
+    # ── canonical 이름 (computed, read-only) ──────────
+    @computed_field(description="증권사 식별 ID (sec_firm_order의 canonical 이름)")
+    @property
+    def firm_id(self) -> Optional[int]:
+        """sec_firm_order의 canonical alias. 클라이언트는 이 필드를 사용한다."""
+        return self.sec_firm_order
+
+    @computed_field(description="게시판 식별 ID (article_board_order의 canonical 이름)")
+    @property
+    def board_id(self) -> Optional[int]:
+        """article_board_order의 canonical alias. 클라이언트는 이 필드를 사용한다."""
+        return self.article_board_order
+    # ──────────────────────────────────────────────────
+
     pdf_archive: Optional[PdfArchiveResponse] = None
     fnguide_summary: Optional[FnGuideReportSummaryResponse] = None
 
@@ -124,11 +152,31 @@ class CompanyResponse(BaseModel):
     report_count: int
 
 class BoardResponse(BaseModel):
-    sec_firm_order: int
-    article_board_order: int
+    # ── deprecated 원본 필드 (물리 컬럼명 그대로) ──
+    sec_firm_order: int = Field(
+        deprecated=True,
+        description="[Deprecated] use firm_id instead.",
+    )
+    article_board_order: int = Field(
+        deprecated=True,
+        description="[Deprecated] use board_id instead.",
+    )
     board_nm: str
     label_nm: Optional[str] = None
     report_count: int = 0
+
+    # ── canonical 이름 (computed) ──
+    @computed_field(description="증권사 식별 ID (sec_firm_order의 canonical 이름)")
+    @property
+    def firm_id(self) -> int:
+        """sec_firm_order의 canonical alias."""
+        return self.sec_firm_order
+
+    @computed_field(description="게시판 식별 ID (article_board_order의 canonical 이름)")
+    @property
+    def board_id(self) -> int:
+        """article_board_order의 canonical alias."""
+        return self.article_board_order
 
 class TelegramUser(BaseModel):
     id: int
@@ -165,13 +213,24 @@ class ReportNotificationResponse(BaseModel):
     report_id: int
     article_title: str
     firm_nm: Optional[str] = None
-    sec_firm_order: Optional[int] = None
+    # deprecated: 알림 응답에서도 firm_id로 통일 예정
+    sec_firm_order: Optional[int] = Field(
+        default=None,
+        deprecated=True,
+        description="[Deprecated] use firm_id instead.",
+    )
     summary_model: Optional[str] = None
     message: str
     pdf_url: Optional[str] = None
     telegram_url: Optional[str] = None
     article_url: Optional[str] = None
     created_at: datetime
+
+    @computed_field(description="증권사 식별 ID (sec_firm_order의 canonical 이름)")
+    @property
+    def firm_id(self) -> Optional[int]:
+        """sec_firm_order의 canonical alias."""
+        return self.sec_firm_order
 
 
 class ReportSentHistoryResponse(BaseModel):
