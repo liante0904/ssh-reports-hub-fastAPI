@@ -26,6 +26,7 @@ async def get_companies(request: Request, db: Session = Depends(get_reports_db))
     실제로 리포트가 존재하는 증권사 목록과 리포트 개수를 반환합니다.
     """
     query = db.query(
+        SecFirmInfo.sec_firm_order,
         SecFirmInfo.sec_firm_name,
         SecFirmInfo.is_direct_link,
         SecFirmInfo.description,
@@ -40,11 +41,12 @@ async def get_companies(request: Request, db: Session = Depends(get_reports_db))
         SecFirmInfo.is_direct_link,
         SecFirmInfo.description
     ).order_by(SecFirmInfo.sec_firm_order.asc())
-    
+
     results = query.all()
-    
+
     return [
         CompanyResponse(
+            firm_id=row.sec_firm_order,
             name=row.sec_firm_name,
             is_direct=(row.is_direct_link == 'Y'),
             note=row.description,

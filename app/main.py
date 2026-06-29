@@ -266,8 +266,10 @@ def _ensure_llm_view(engine) -> None:
                 CREATE OR REPLACE VIEW v_reports AS SELECT
                     report_id,
                     sec_firm_order      AS broker_id,
+                    sec_firm_order      AS firm_id,
                     firm_nm             AS broker_name,
                     article_board_order AS board_category_id,
+                    article_board_order AS board_id,
                     mkt_tp              AS market_type,
                     article_title       AS title,
                     article_url         AS source_page_url,

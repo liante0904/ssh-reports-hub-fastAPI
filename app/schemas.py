@@ -146,6 +146,7 @@ class SecReportResponse(BaseModel):
 
 
 class CompanyResponse(BaseModel):
+    firm_id: int
     name: str
     is_direct: bool
     note: Optional[str] = None
