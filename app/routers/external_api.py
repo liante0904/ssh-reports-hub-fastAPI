@@ -314,7 +314,7 @@ async def get_industry_reports(
         clauses.append("r.article_title !~* '\\[[^\\]]+/(매수|매도|중립|시장수익률|Buy|Hold|Sell|Neutral|Outperform|Underperform|Not\\s*Rated|Trading\\s*Buy)'")
         clauses.append("r.article_title !~* '목표주가'")
 
-    clauses.append("(p.report_id IS NULL OR p.page_count IS NULL OR p.page_count >= 10)")
+    clauses.append("(r.pdf_report_id IS NULL OR r.pdf_page_count IS NULL OR r.pdf_page_count >= 10)")
     
     if last_report_id is not None:
         clauses.append("r.report_id < %s")
