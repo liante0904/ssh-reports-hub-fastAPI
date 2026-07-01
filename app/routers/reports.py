@@ -49,6 +49,8 @@ async def get_reports(
     params.extend([limit, offset])
 
     from ..routers.external_api import _view_row_to_api_item
+    if db.get_bind().dialect.name != "postgresql":
+        sql = sql.replace("%s", "?")
     conn = db.get_bind().raw_connection()
     try:
         cur = conn.cursor()
@@ -97,13 +99,14 @@ async def get_summary_notifications(
     try:
         conn = db.get_bind().raw_connection()
         cur = conn.cursor()
-        cur.execute("""
-            SELECT n.id, n.report_id, n.article_title, n.firm_nm, n.summary_model,
+        sql = """SELECT n.id, n.report_id, n.article_title, n.firm_nm, n.summary_model,
                    n.message, n.created_at, r.pdf_url, r.telegram_url, r.article_url, r.firm_id
             FROM tbl_sec_reports_notifications n
             LEFT JOIN tbl_sec_reports r ON n.report_id = r.report_id
-            ORDER BY n.created_at DESC LIMIT %s
-        """, [limit])
+            ORDER BY n.created_at DESC LIMIT %s"""
+        if db.get_bind().dialect.name != "postgresql":
+            sql = sql.replace("%s", "?")
+        cur.execute(sql, [limit])
         rows = [dict(zip([d[0] for d in cur.description], row)) for row in cur.fetchall()]
         conn.close()
         return [ReportNotificationResponse(
@@ -127,13 +130,14 @@ async def get_send_history(
     try:
         conn = db.get_bind().raw_connection()
         cur = conn.cursor()
-        cur.execute("""
-            SELECT h.id, h.report_id, h.user_id, h.keyword, h.sent_at,
+        sql = """SELECT h.id, h.report_id, h.user_id, h.keyword, h.sent_at,
                    r.article_title, r.firm_nm
             FROM tbl_report_send_history h
             LEFT JOIN tbl_sec_reports r ON h.report_id = r.report_id
-            ORDER BY h.sent_at DESC LIMIT %s
-        """, [limit])
+            ORDER BY h.sent_at DESC LIMIT %s"""
+        if db.get_bind().dialect.name != "postgresql":
+            sql = sql.replace("%s", "?")
+        cur.execute(sql, [limit])
         rows = [dict(zip([d[0] for d in cur.description], row)) for row in cur.fetchall()]
         conn.close()
         return [ReportSentHistoryResponse(**r) for r in rows]
