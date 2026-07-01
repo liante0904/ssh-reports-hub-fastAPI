@@ -1,8 +1,9 @@
 import os
 from typing import Annotated, Optional
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
-from sqlalchemy import and_, or_, func
+from sqlalchemy import and_, or_, func, text
 from sqlalchemy.orm import Session, joinedload
 
 from ..cache import cache_response, invalidate_prefix
@@ -17,6 +18,27 @@ router = APIRouter(prefix="/external/api", tags=["external-api"])
 def _sent_report_filter():
     return SecReport.telegram_sent == True
 
+def _execute_raw_psycopg2_query(db: Session, sql_str: str, params: list = None) -> list:
+    if params is None:
+        params = []
+    
+    dialect_name = db.get_bind().dialect.name
+    if dialect_name != "postgresql":
+        sql_str = sql_str.replace("%s", "?")
+        
+    conn = db.get_bind().raw_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(sql_str, params)
+        colnames = [desc[0] for desc in cursor.description]
+        rows = []
+        for row in cursor.fetchall():
+            rows.append(dict(zip(colnames, row)))
+        return rows
+    finally:
+        conn.close()
+
+
 @router.get("/companies", response_model=list[CompanyResponse], summary="증권사 정보 목록 조회 (리포트 존재 기준)")
 @cache_response(ttl=1800, prefix="api")  # 30분 캐시 (증권사 목록은 거의 변하지 않음)
 async def get_companies(request: Request, db: Session = Depends(get_reports_db)):
@@ -24,32 +46,32 @@ async def get_companies(request: Request, db: Session = Depends(get_reports_db))
     tbm_sec_firm_info와 tbl_sec_reports를 JOIN하여
     실제로 리포트가 존재하는 증권사 목록과 리포트 개수를 반환합니다.
     """
-    query = db.query(
-        SecFirmInfo.sec_firm_order,
-        SecFirmInfo.sec_firm_name,
-        SecFirmInfo.is_direct_link,
-        SecFirmInfo.description,
-        func.count(SecReport.report_id).label("report_count")
-    ).join(
-        SecReport, SecFirmInfo.sec_firm_order == SecReport.firm_id
-    ).filter(
-        _sent_report_filter()
-    ).group_by(
-        SecFirmInfo.sec_firm_order,
-        SecFirmInfo.sec_firm_name,
-        SecFirmInfo.is_direct_link,
-        SecFirmInfo.description
-    ).order_by(SecFirmInfo.sec_firm_order.asc())
-
-    results = query.all()
+    sql = """
+        SELECT 
+            f.sec_firm_order,
+            f.firm_nm AS sec_firm_name,
+            f.telegram_update_yn AS is_direct_link,
+            f.comment_pdf_url AS description,
+            COUNT(r.report_id) AS report_count
+        FROM tbm_sec_firm_info f
+        JOIN tbl_sec_reports r ON f.sec_firm_order = r.firm_id
+        WHERE r.telegram_sent = TRUE
+        GROUP BY 
+            f.sec_firm_order,
+            f.firm_nm,
+            f.telegram_update_yn,
+            f.comment_pdf_url
+        ORDER BY f.sec_firm_order ASC
+    """
+    results = _execute_raw_psycopg2_query(db, sql)
 
     return [
         CompanyResponse(
-            firm_id=row.sec_firm_order,
-            name=row.sec_firm_name,
-            is_direct=(row.is_direct_link == 'Y'),
-            note=row.description,
-            report_count=row.report_count
+            firm_id=row["sec_firm_order"],
+            name=row["sec_firm_name"],
+            is_direct=(row["is_direct_link"] == 'Y'),
+            note=row["description"],
+            report_count=row["report_count"]
         ) for row in results
     ]
 
@@ -64,36 +86,35 @@ async def get_boards(
     TBM_SEC_FIRM_BOARD_INFO와 SecReport를 JOIN하여 
     리포트가 존재하는 게시판 목록을 반환합니다.
     """
-    query = db.query(
-        SecBoardInfo.sec_firm_order,
-        SecBoardInfo.article_board_order,
-        SecBoardInfo.board_nm,
-        SecBoardInfo.label_nm,
-        func.count(SecReport.report_id).label("report_count")
-    ).outerjoin(
-        SecReport, and_(
-            SecBoardInfo.sec_firm_order == SecReport.firm_id,
-            SecBoardInfo.article_board_order == SecReport.board_id,
-            _sent_report_filter()
-        )
-    ).filter(
-        SecBoardInfo.sec_firm_order == company
-    ).group_by(
-        SecBoardInfo.sec_firm_order,
-        SecBoardInfo.article_board_order,
-        SecBoardInfo.board_nm,
-        SecBoardInfo.label_nm
-    ).order_by(SecBoardInfo.article_board_order.asc())
-
-    results = query.all()
+    sql = """
+        SELECT 
+            b.sec_firm_order,
+            b.article_board_order,
+            b.board_nm,
+            b.label_nm,
+            COUNT(r.report_id) AS report_count
+        FROM tbm_sec_firm_board_info b
+        LEFT OUTER JOIN tbl_sec_reports r ON 
+            b.sec_firm_order = r.firm_id AND 
+            b.article_board_order = r.board_id AND 
+            r.telegram_sent = TRUE
+        WHERE b.sec_firm_order = %s
+        GROUP BY 
+            b.sec_firm_order,
+            b.article_board_order,
+            b.board_nm,
+            b.label_nm
+        ORDER BY b.article_board_order ASC
+    """
+    results = _execute_raw_psycopg2_query(db, sql, [company])
 
     return [
         BoardResponse(
-            sec_firm_order=row.sec_firm_order,
-            article_board_order=row.article_board_order,
-            board_nm=row.board_nm,
-            label_nm=row.label_nm,
-            report_count=row.report_count
+            sec_firm_order=row["sec_firm_order"],
+            article_board_order=row["article_board_order"],
+            board_nm=row["board_nm"],
+            label_nm=row["label_nm"],
+            report_count=row["report_count"]
         ) for row in results
     ]
 
@@ -119,21 +140,157 @@ INDUSTRY_REPORT_BOARD_FILTERS = (
 
 
 
-def _report_to_api_item(report: SecReport, is_direct: bool = None) -> dict:
-    item = SecReportResponse.model_validate(report).model_dump(mode="json")
+BASE_SELECT_SQL = """
+    SELECT 
+        r.report_id, r.firm_nm, r.reg_dt, r.article_title, r.telegram_url, r.pdf_url, r.writer, r.gemini_summary, r.tags, r.stock_names, r.sector,
+        r.target_price, r.rating, r.revision_type, r.report_type, r.stock_tickers,
+        r.firm_id AS sec_firm_order, r.board_id AS article_board_order,
+        r.save_time, r.save_at, r.report_unique_key, r.mkt_tp, r.article_url, r.download_url, r.summary_time, r.summary_model, r.telegram_sent,
+        p.report_id AS pdf_report_id, p.file_path AS pdf_file_path, p.file_size AS pdf_file_size, p.page_count AS pdf_page_count, p.archive_status AS pdf_archive_status, p.file_name AS pdf_file_name, p.has_text AS pdf_has_text, p.is_encrypted AS pdf_is_encrypted, p.storage_backend AS pdf_storage_backend, p.storage_key AS pdf_storage_key, p.author AS pdf_author, p.created_at AS pdf_created_at, p.updated_at AS pdf_updated_at, p.last_accessed_at AS pdf_last_accessed_at,
+        fs.summary_id AS fs_summary_id, fs.source_page_url AS fs_source_page_url, fs.report_date AS fs_report_date, fs.company_name AS fs_company_name, fs.company_code AS fs_company_code, fs.report_title AS fs_report_title, fs.summary_text AS fs_summary_text, fs.opinion AS fs_opinion, fs.target_price AS fs_target_price, fs.prev_close AS fs_prev_close, fs.provider AS fs_provider, fs.author AS fs_author, fs.article_url AS fs_article_url, fs.pdf_url AS fs_pdf_url, fs.report_key AS fs_report_key, fs.item_rank AS fs_item_rank, fs.sync_status AS fs_sync_status, fs.created_at AS fs_created_at, fs.updated_at AS fs_updated_at,
+        f.telegram_update_yn AS is_direct
+    FROM tbl_sec_reports r
+    LEFT OUTER JOIN tbl_sec_reports_pdf_archive p ON r.report_id = p.report_id
+    LEFT OUTER JOIN tbl_fnguide_report_summaries fs ON r.fnguide_summary_id = fs.summary_id
+    LEFT OUTER JOIN tbm_sec_firm_info f ON r.firm_id = f.sec_firm_order
+"""
+
+def _row_to_dict(row) -> dict:
+    if hasattr(row, "_mapping"):
+        m = row._mapping
+    else:
+        m = row
+    
+    pdf_archive = None
+    if m.get("pdf_report_id") is not None:
+        pdf_archive = {
+            "report_id": m.get("pdf_report_id"),
+            "file_path": m.get("pdf_file_path"),
+            "file_size": m.get("pdf_file_size"),
+            "page_count": m.get("pdf_page_count"),
+            "archive_status": m.get("pdf_archive_status"),
+            "file_name": m.get("pdf_file_name"),
+            "has_text": m.get("pdf_has_text"),
+            "is_encrypted": m.get("pdf_is_encrypted"),
+            "storage_backend": m.get("pdf_storage_backend"),
+            "storage_key": m.get("pdf_storage_key"),
+            "author": m.get("pdf_author"),
+            "created_at": m.get("pdf_created_at"),
+            "updated_at": m.get("pdf_updated_at"),
+            "last_accessed_at": m.get("pdf_last_accessed_at"),
+        }
+        
+    fnguide_summary = None
+    if m.get("fs_summary_id") is not None:
+        fnguide_summary = {
+            "summary_id": m.get("fs_summary_id"),
+            "source_page_url": m.get("fs_source_page_url"),
+            "report_date": m.get("fs_report_date"),
+            "company_name": m.get("fs_company_name"),
+            "company_code": m.get("fs_company_code"),
+            "report_title": m.get("fs_report_title"),
+            "summary_text": m.get("fs_summary_text"),
+            "opinion": m.get("fs_opinion"),
+            "target_price": m.get("fs_target_price"),
+            "prev_close": m.get("fs_prev_close"),
+            "provider": m.get("fs_provider"),
+            "author": m.get("fs_author"),
+            "article_url": m.get("fs_article_url"),
+            "pdf_url": m.get("fs_pdf_url"),
+            "report_key": m.get("fs_report_key"),
+            "item_rank": m.get("fs_item_rank"),
+            "sync_status": m.get("fs_sync_status"),
+            "created_at": m.get("fs_created_at"),
+            "updated_at": m.get("fs_updated_at"),
+        }
+        
+    return {
+        "report_id": m.get("report_id"),
+        "firm_nm": m.get("firm_nm"),
+        "is_direct": m.get("is_direct"),
+        "reg_dt": m.get("reg_dt"),
+        "article_title": m.get("article_title"),
+        "telegram_url": m.get("telegram_url"),
+        "pdf_url": m.get("pdf_url"),
+        "writer": m.get("writer"),
+        "gemini_summary": m.get("gemini_summary"),
+        "tags": m.get("tags"),
+        "stock_names": m.get("stock_names"),
+        "sector": m.get("sector"),
+        "target_price": float(m.get("target_price")) if m.get("target_price") is not None else None,
+        "rating": m.get("rating"),
+        "revision_type": m.get("revision_type"),
+        "report_type": m.get("report_type"),
+        "stock_tickers": m.get("stock_tickers"),
+        "sec_firm_order": m.get("sec_firm_order"),
+        "article_board_order": m.get("article_board_order"),
+        "save_time": m.get("save_time"),
+        "save_at": m.get("save_at"),
+        "report_unique_key": m.get("report_unique_key"),
+        "mkt_tp": m.get("mkt_tp"),
+        "article_url": m.get("article_url"),
+        "download_url": m.get("download_url"),
+        "summary_time": m.get("summary_time"),
+        "summary_model": m.get("summary_model"),
+        "telegram_sent": m.get("telegram_sent"),
+        "pdf_archive": pdf_archive,
+        "fnguide_summary": fnguide_summary,
+    }
+
+def _report_to_api_item(report, is_direct: bool = None) -> dict:
+    if isinstance(report, dict):
+        item = SecReportResponse.model_validate(report).model_dump(mode="json")
+        save_at = report.get("save_at")
+        save_time = report.get("save_time")
+        report_unique_key = report.get("report_unique_key")
+        mkt_tp = report.get("mkt_tp")
+        article_url = report.get("article_url")
+        download_url = report.get("download_url")
+        summary_time = report.get("summary_time")
+        summary_model = report.get("summary_model")
+        telegram_sent = report.get("telegram_sent")
+        is_direct_val = (report.get("is_direct") == 'Y') if report.get("is_direct") is not None else None
+    else:
+        item = SecReportResponse.model_validate(report).model_dump(mode="json")
+        save_at = getattr(report, "save_at", None)
+        save_time = getattr(report, "save_time", None)
+        report_unique_key = getattr(report, "report_unique_key", None)
+        mkt_tp = getattr(report, "mkt_tp", None)
+        article_url = getattr(report, "article_url", None)
+        download_url = getattr(report, "download_url", None)
+        summary_time = getattr(report, "summary_time", None)
+        summary_model = getattr(report, "summary_model", None)
+        telegram_sent = getattr(report, "telegram_sent", None)
+        is_direct_val = None
+
     if is_direct is not None:
         item["is_direct"] = is_direct
-    # Legacy fields not yet in SecReportResponse schema
+    elif is_direct_val is not None:
+        item["is_direct"] = is_direct_val
+
     item["send_user"] = None
     item["download_status_yn"] = None
-    item["scraped_at"] = report.save_at.isoformat() if report.save_at else report.save_time
-    item["key"] = report.report_unique_key
-    item["mkt_tp"] = report.mkt_tp
-    item["article_url"] = report.article_url
-    item["download_url"] = report.download_url
-    item["summary_time"] = report.summary_time
-    item["summary_model"] = report.summary_model
-    item["telegram_sent"] = report.telegram_sent
+    
+    if isinstance(save_at, datetime):
+        scraped_at = save_at.isoformat()
+    elif isinstance(save_at, str):
+        if " " in save_at:
+            scraped_at = save_at.replace(" ", "T")
+        else:
+            scraped_at = save_at
+    elif save_at:
+        scraped_at = str(save_at)
+    else:
+        scraped_at = save_time
+
+    item["scraped_at"] = scraped_at
+    item["key"] = report_unique_key
+    item["mkt_tp"] = mkt_tp
+    item["article_url"] = article_url
+    item["download_url"] = download_url
+    item["summary_time"] = summary_time
+    item["summary_model"] = summary_model
+    item["telegram_sent"] = telegram_sent
     return item
 
 
@@ -166,13 +323,7 @@ def _collection_response(
     }
 
 
-def _paginate_query(query, limit: int, offset: int) -> tuple[list, bool]:
-    rows = query.offset(offset).limit(limit + 1).all()
-    return rows[:limit], len(rows) > limit
-
-
-def _apply_search_filters(
-    query,
+def _build_where_clauses(
     writer: Optional[str],
     title: Optional[str],
     mkt_tp: Optional[str],
@@ -181,26 +332,51 @@ def _apply_search_filters(
     tag: Optional[str] = None,
     sector: Optional[str] = None,
     stock: Optional[str] = None,
-):
+    is_postgres: bool = True,
+) -> tuple[list[str], list]:
+    like_op = "ILIKE" if is_postgres else "LIKE"
+    clauses = []
+    params = []
     if writer:
-        query = query.filter(SecReport.writer.ilike(f"%{writer}%"))
+        clauses.append(f"r.writer {like_op} %s")
+        params.append(f"%{writer}%")
     if title:
-        query = query.filter(SecReport.article_title.ilike(f"%{title}%"))
+        clauses.append(f"r.article_title {like_op} %s")
+        params.append(f"%{title}%")
     if mkt_tp == "global":
-        query = query.filter(SecReport.mkt_tp != "KR")
+        clauses.append("r.mkt_tp != 'KR'")
     elif mkt_tp == "domestic":
-        query = query.filter(SecReport.mkt_tp == "KR")
+        clauses.append("r.mkt_tp = 'KR'")
     if company is not None:
-        query = query.filter(SecReport.firm_id == company)
+        clauses.append("r.firm_id = %s")
+        params.append(company)
     if board is not None:
-        query = query.filter(SecReport.board_id == board)
+        clauses.append("r.board_id = %s")
+        params.append(board)
     if tag:
-        query = query.filter(SecReport.tags.ilike(f'%"{tag}"%'))
+        clauses.append(f"r.tags {like_op} %s")
+        params.append(f'%"{tag}"%')
     if sector:
-        query = query.filter(SecReport.sector.ilike(f"%{sector}%"))
+        clauses.append(f"r.sector {like_op} %s")
+        params.append(f"%{sector}%")
     if stock:
-        query = query.filter(SecReport.stock_names.ilike(f'%"{stock}"%'))
-    return query
+        clauses.append(f"r.stock_names {like_op} %s")
+        params.append(f'%"{stock}"%')
+    return clauses, params
+
+
+def _paginate_query(query_or_sql, limit: int, offset: int, db: Session = None, params: list = None) -> tuple[list, bool]:
+    if not isinstance(query_or_sql, str):
+        rows = query_or_sql.offset(offset).limit(limit + 1).all()
+        return rows[:limit], len(rows) > limit
+
+    sql = f"{query_or_sql} LIMIT %s OFFSET %s"
+    if params is None:
+        params = []
+    
+    extended_params = list(params) + [limit + 1, offset]
+    results = _execute_raw_psycopg2_query(db, sql, extended_params)
+    return results[:limit], len(results) > limit
 
 
 @router.get("/industry", summary="산업별 리포트 조회 (Public API)")
@@ -221,57 +397,52 @@ async def get_industry_reports(
     """
     산업별 필터가 적용된 리포트 목록을 조회합니다.
     """
-    board_filters = []
+    is_postgres = (db.get_bind().dialect.name == "postgresql")
+    
+    params = []
+    board_clauses = []
     for firm_order, board_orders in INDUSTRY_REPORT_BOARD_FILTERS:
-        f = and_(
-            SecReport.firm_id == firm_order,
-            SecReport.board_id.in_(board_orders),
-        )
-        if firm_order == 19:
-            # DB증권: 종목코드(숫자 5~6자리)가 포함된 제목은 기업분석이므로 제외
-            if db.get_bind().dialect.name == "postgresql":
-                f = and_(f, SecReport.article_title.op("!~")(r"\([0-9]{5,6}\)"))
-        board_filters.append(f)
+        placeholders = ", ".join(["%s"] * len(board_orders))
+        if firm_order == 19 and is_postgres:
+            c = f"(r.firm_id = %s AND r.board_id IN ({placeholders}) AND r.article_title !~ '\\([0-9]{{5,6}}\\)')"
+        else:
+            c = f"(r.firm_id = %s AND r.board_id IN ({placeholders}))"
+        board_clauses.append(c)
+        params.append(firm_order)
+        params.extend(board_orders)
+    
+    clauses = ["(" + ") OR (".join(board_clauses) + ")"]
+    clauses.append("r.telegram_sent = TRUE")
+    
+    if is_postgres:
+        clauses.append("r.article_title !~* '\\(\\d{5,6}'")
+        clauses.append("r.article_title !~* '\\[\\d{5,6}/'")
+        clauses.append("r.article_title !~* '\\([A-Z]{1,5}\\.[A-Z]{2}\\)'")
+        clauses.append("r.article_title !~* '\\(\\d+\\.K[QS]\\)'")
+        clauses.append("r.article_title !~* '\\[[^\\]]+/(매수|매도|중립|시장수익률|Buy|Hold|Sell|Neutral|Outperform|Underperform|Not\\s*Rated|Trading\\s*Buy)'")
+        clauses.append("r.article_title !~* '목표주가'")
 
-    query = db.query(SecReport, SecFirmInfo.is_direct_link).outerjoin(
-        SecFirmInfo, SecReport.firm_id == SecFirmInfo.sec_firm_order
-    ).filter(
-        or_(*board_filters),
-        _sent_report_filter(),
-    )
-    # PostgreSQL 전용: 개별 종목코드 제외 (산업분석 게시판에 올라온 기업분석 필터링)
-    if db.get_bind().dialect.name == "postgresql":
-        query = query.filter(
-            SecReport.article_title.op("!~*")(r"\(\d{5,6}"),        # 한국 종목코드 (071050)
-            SecReport.article_title.op("!~*")(r"\[\d{5,6}/"),        # [071050/...] 형식
-            SecReport.article_title.op("!~*")(r"\([A-Z]{1,5}\.[A-Z]{2}\)"),  # 해외티커 (NVDA.US)
-            SecReport.article_title.op("!~*")(r"\(\d+\.K[QS]\)"),       # 국내티커 (005930.KS, 123456.KQ)
-            SecReport.article_title.op("!~*")(
-                r"\[[^\]]+/(매수|매도|중립|시장수익률|Buy|Hold|Sell|Neutral|Outperform|Underperform|Not\s*Rated|Trading\s*Buy)"
-            ),
-            SecReport.article_title.op("!~*")(r"목표주가"),
-        )
+    clauses.append("(p.report_id IS NULL OR p.page_count IS NULL OR p.page_count >= 10)")
+    
     if last_report_id is not None:
-        query = query.filter(SecReport.report_id < last_report_id)
-    query = _apply_search_filters(query, writer, title, mkt_tp, company, board)
-
-    # PdfArchive와 outerjoin하여 page_count 기반 필터링
-    query = query.outerjoin(PdfArchive, SecReport.report_id == PdfArchive.report_id)
-    query = query.filter(
-        or_(
-            PdfArchive.report_id == None,      # 아카이브 없음 → 통과
-            PdfArchive.page_count == None,      # 페이지 정보 없음 → 통과
-            PdfArchive.page_count >= 10,        # 10페이지 이상만 통과
-        )
+        clauses.append("r.report_id < %s")
+        params.append(last_report_id)
+        
+    search_clauses, search_params = _build_where_clauses(
+        writer, title, mkt_tp, company, board, is_postgres=is_postgres
     )
-
-    query = query.options(joinedload(SecReport.pdf_archive), joinedload(SecReport.fnguide_summary))
-
-    rows, has_more = _paginate_query(
-        query.order_by(SecReport.report_id.desc()),
-        limit,
-        offset,
-    )
+    clauses.extend(search_clauses)
+    params.extend(search_params)
+    
+    where_str = ""
+    if clauses:
+        where_str = "WHERE " + " AND ".join(clauses)
+        
+    order_by = "ORDER BY r.report_id DESC"
+    sql_base = f"{BASE_SELECT_SQL} {where_str} {order_by}"
+    
+    rows, has_more = _paginate_query(sql_base, limit, offset, db=db, params=params)
+    rows = [_row_to_dict(r) for r in rows]
     return _collection_response(request, rows, limit, offset, has_more)
 
 
@@ -293,41 +464,42 @@ async def get_global_reports(
     글로벌(해외주식/글로벌 시장) 관련 리포트 목록을 독립적으로 조회합니다.
     국내 종목코드나 국내 시장 관련 키워드가 제목에 포함된 리포트는 제외됩니다.
     """
-    query = db.query(SecReport, SecFirmInfo.is_direct_link).outerjoin(
-        SecFirmInfo, SecReport.firm_id == SecFirmInfo.sec_firm_order
-    ).filter(
-        _sent_report_filter(),
-        SecReport.mkt_tp != "KR",
+    is_postgres = (db.get_bind().dialect.name == "postgresql")
+    
+    clauses = ["r.telegram_sent = TRUE", "r.mkt_tp != 'KR'"]
+    params = []
+    
+    if is_postgres:
+        clauses.append("r.article_title !~* '\\(\\d{5,6}\\.K[QS]\\)'")
+        clauses.append("r.article_title !~* '\\b\\d{5,6}\\b'")
+        clauses.append("r.article_title !~* '코스피|코스닥|KOSPI|KOSDAQ|퀀트|Quant|MP'")
+        
+    if report_id is not None:
+        clauses.append("r.report_id = %s")
+        params.append(report_id)
+        
+    search_clauses, search_params = _build_where_clauses(
+        writer, title, "global", company, board, is_postgres=is_postgres
     )
-
-    # PostgreSQL 전용: 국내 종목(네오팜 등) 및 국내 퀀트 전략 리포트 필터링 제외
-    if db.get_bind().dialect.name == "postgresql":
-        query = query.filter(
-            # 국내 종목코드 및 티커 형식 (예: 092730.KQ, 005930.KS, 6자리 숫자 종목코드) 제외
-            SecReport.article_title.op("!~*")(r"\(\d{5,6}\.K[QS]\)"),
-            SecReport.article_title.op("!~*")(r"\b\d{5,6}\b"),
-            # 국내 시장 및 퀀트 전략 관련 키워드(코스피, 코스닥, KOSPI, KOSDAQ, 퀀트, Quant, MP) 제외
-            SecReport.article_title.op("!~*")(r"코스피|코스닥|KOSPI|KOSDAQ|퀀트|Quant|MP"),
-        )
-
+    clauses.extend(search_clauses)
+    params.extend(search_params)
+    
     if report_id is not None:
-        query = query.filter(SecReport.report_id == report_id)
-
-    query = _apply_search_filters(query, writer, title, "global", company, board)
-    query = query.options(joinedload(SecReport.pdf_archive), joinedload(SecReport.fnguide_summary))
-
-    if report_id is not None:
-        query = query.order_by(SecReport.report_id.desc())
+        order_by = "ORDER BY r.report_id DESC"
     else:
-        query = query.order_by(
-            SecReport.reg_dt.desc(),
-            SecReport.save_at.desc().nullslast(),
-            SecReport.report_id.desc(),
-            SecReport.firm_id,
-            SecReport.board_id,
-        )
-
-    rows, has_more = _paginate_query(query, limit, offset)
+        if is_postgres:
+            order_by = "ORDER BY r.reg_dt DESC, r.save_at DESC NULLS LAST, r.report_id DESC, r.firm_id, r.board_id"
+        else:
+            order_by = "ORDER BY r.reg_dt DESC, CASE WHEN r.save_at IS NULL THEN 1 ELSE 0 END, r.save_at DESC, r.report_id DESC, r.firm_id, r.board_id"
+            
+    where_str = ""
+    if clauses:
+        where_str = "WHERE " + " AND ".join(clauses)
+        
+    sql_base = f"{BASE_SELECT_SQL} {where_str} {order_by}"
+    
+    rows, has_more = _paginate_query(sql_base, limit, offset, db=db, params=params)
+    rows = [_row_to_dict(r) for r in rows]
     return _collection_response(request, rows, limit, offset, has_more)
 
 
@@ -355,69 +527,70 @@ async def search_reports(
     """
     다양한 필터를 사용하여 리포트를 검색합니다.
     tag, sector, stock 파라미터로 enricher 태그 기반 필터링이 가능합니다.
-
-    outlook=true 시 제목에 '전망'이 포함된 시장 전망 리포트만 필터링합니다.
-    (2026년 하반기 전망, 연간 전망 등)
     """
-    query = db.query(SecReport, SecFirmInfo.is_direct_link).outerjoin(
-        SecFirmInfo, SecReport.firm_id == SecFirmInfo.sec_firm_order
+    is_postgres = (db.get_bind().dialect.name == "postgresql")
+    like_op = "ILIKE" if is_postgres else "LIKE"
+    
+    clauses = []
+    params = []
+    
+    if report_id is not None:
+        clauses.append("r.report_id = %s")
+        params.append(report_id)
+        
+    search_clauses, search_params = _build_where_clauses(
+        writer, title, mkt_tp, company, board, tag, sector, stock, is_postgres=is_postgres
     )
-    if report_id is not None:
-        query = query.filter(SecReport.report_id == report_id)
-    query = _apply_search_filters(query, writer, title, mkt_tp, company, board, tag, sector, stock)
-    query = query.options(joinedload(SecReport.pdf_archive), joinedload(SecReport.fnguide_summary))
-
-    # AI 요약이 있는 리포트만 필터링
+    clauses.extend(search_clauses)
+    params.extend(search_params)
+    
     if has_summary:
-        query = query.filter(
-            SecReport.gemini_summary.isnot(None),
-            SecReport.gemini_summary != "",
-            SecReport.gemini_summary != " ",
-        )
-
-    # 시장 전망 리포트 필터링
-    # 포함: 하반기/상반기/연간/전망포럼 등 시장 맥락 + '전망'
-    # 제외: 개별 종목코드(숫자5~6자리), 목표주가 언급
+        clauses.append("(r.gemini_summary IS NOT NULL AND r.gemini_summary != '' AND r.gemini_summary != ' ')")
+        
     if outlook:
-        query = query.filter(
-            # 기본: 제목에 "전망" 포함
-            SecReport.article_title.ilike("%전망%"),
-            # 시장 맥락 키워드 필수 (하반기, 상반기, 연간, 전망포럼, N년, 2H26 등)
-            SecReport.article_title.op("~*")(
-                r"하반기|상반기|연간|\d{4}년|\dH\d{2}|전망포럼"
-                r"|(?:경제|금융시장|주식시장|시장)\s*전망"
-                r"|(?:업종|산업)\s*전망"
-            ),
-            # 개별 종목코드 제외: (071050), (030200.KS/매수) 등
-            SecReport.article_title.op("!~*")(r"\(\d{5,6}"),
-            SecReport.article_title.op("!~*")(r"\[\d{5,6}/"),
-            # 개별 종목 투자의견 제외: [회사명/매수], [회사명/Buy] 등
-            SecReport.article_title.op("!~*")(
-                r"\[[^\]]+/(매수|매도|중립|시장수익률|Buy|Hold|Sell|Neutral|Outperform|Underperform|Not\s*Rated|Trading\s*Buy)"
-            ),
-            # 목표주가 언급 제외
-            SecReport.article_title.op("!~*")(r"목표주가"),
-        )
-        # 연도별 세분 필터 (outlook_year=2026 → 제목에 "2026년" 포함)
+        clauses.append(f"r.article_title {like_op} '%전망%'")
+        if is_postgres:
+            clauses.append("r.article_title ~* '하반기|상반기|연간|\\d{4}년|\\dH\\d{2}|전망포럼|(?:경제|금융시장|주식시장|시장)\\s*전망|(?:업종|산업)\\s*전망'")
+            clauses.append("r.article_title !~* '\\(\\d{5,6}'")
+            clauses.append("r.article_title !~* '\\[\\d{5,6}/'")
+            clauses.append("r.article_title !~* '\\[[^\\]]+/(매수|매도|중립|시장수익률|Buy|Hold|Sell|Neutral|Outperform|Underperform|Not\\s*Rated|Trading\\s*Buy)'")
+            clauses.append("r.article_title !~* '목표주가'")
+            
         if outlook_year:
-            query = query.filter(
-                SecReport.article_title.ilike(f"%{outlook_year}년%"),
-            )
-
+            clauses.append(f"r.article_title {like_op} %s")
+            params.append(f"%{outlook_year}년%")
+            
     if report_id is not None:
-        query = query.order_by(SecReport.report_id.desc())
+        order_by = "ORDER BY r.report_id DESC"
     else:
-        query = query.order_by(
-            SecReport.reg_dt.desc(),
-            SecReport.save_at.desc().nullslast(),
-            SecReport.report_id.desc(),
-            SecReport.firm_id,
-            SecReport.board_id,
-        )
-
-    rows, has_more = _paginate_query(query, limit, offset)
+        if is_postgres:
+            order_by = "ORDER BY r.reg_dt DESC, r.save_at DESC NULLS LAST, r.report_id DESC, r.firm_id, r.board_id"
+        else:
+            order_by = "ORDER BY r.reg_dt DESC, CASE WHEN r.save_at IS NULL THEN 1 ELSE 0 END, r.save_at DESC, r.report_id DESC, r.firm_id, r.board_id"
+            
+    where_str = ""
+    if clauses:
+        where_str = "WHERE " + " AND ".join(clauses)
+        
+    sql_base = f"{BASE_SELECT_SQL} {where_str} {order_by}"
+    
+    rows, has_more = _paginate_query(sql_base, limit, offset, db=db, params=params)
+    rows = [_row_to_dict(r) for r in rows]
     return _collection_response(request, rows, limit, offset, has_more)
 
+def _parse_json_field(v) -> list:
+    import json
+    if v is None:
+        return []
+    if isinstance(v, list):
+        return v
+    if isinstance(v, str):
+        try:
+            parsed = json.loads(v)
+            return parsed if isinstance(parsed, list) else []
+        except (json.JSONDecodeError, TypeError):
+            return []
+    return []
 
 # ---------------------------------------------------------------------------
 # Internal 캐시 무효화 Webhook — 스크래퍼가 새 데이터 insert 후 호출
