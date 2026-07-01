@@ -471,6 +471,7 @@ async def get_global_reports(
     
     if is_postgres:
         clauses.append("r.article_title !~* '\\(\\d{5,6}\\.K[QS]\\)'")
+        clauses.append("r.article_title !~* '\\([^)]+\\.K[QS][^)]*\\)'")   # (214150.KQ/매수) 등 변형
         clauses.append("r.article_title !~* '\\b\\d{5,6}\\b'")
         clauses.append("r.article_title !~* '코스피|코스닥|KOSPI|KOSDAQ|퀀트|Quant|MP'")
         
