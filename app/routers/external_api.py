@@ -490,7 +490,7 @@ async def get_recent_reports(
     /recent 프론트엔드 페이지 전용 — search API 부하 분산.
     """
     is_postgres = (db.get_bind().dialect.name == "postgresql")
-    order_by = "ORDER BY r.save_at DESC NULLS LAST, r.report_id DESC" if is_postgres else \
+    order_by = "ORDER BY r.save_at DESC NULLS LAST, r.save_time DESC, r.report_id DESC" if is_postgres else \
                "ORDER BY CASE WHEN r.save_at IS NULL THEN 1 ELSE 0 END, r.save_at DESC, r.report_id DESC"
 
     clauses = ["r.telegram_sent = TRUE"]
