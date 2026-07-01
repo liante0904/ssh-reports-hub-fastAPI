@@ -238,12 +238,12 @@ async def mark_notification_read(
 
 @router.post("/reports/notifications/mark-all-read", summary="전체 읽음 처리")
 async def mark_all_notifications_read(
-    keys: list = Body(default=[]),
+    keys: list = Body(..., embed=True),
     user: User = Depends(get_user_from_token),
     db: Session = Depends(get_reports_db),
 ):
-    for raw_key in keys:
-        key = str(raw_key)
+    str_keys = [str(k) for k in keys]
+    for key in str_keys:
         exists = db.query(NotificationRead).filter(
             NotificationRead.user_id == user.id,
             NotificationRead.notification_key == key,
@@ -251,4 +251,4 @@ async def mark_all_notifications_read(
         if not exists:
             db.add(NotificationRead(user_id=user.id, notification_key=key))
     db.commit()
-    return {"status": "ok", "count": len(keys)}
+    return {"status": "ok", "count": len(str_keys)}
