@@ -145,7 +145,7 @@ BASE_SELECT_SQL = """
 """
 
 _VIEW_TO_API_KEY_MAP = {
-    "sec_firm_order": "sec_firm_order", "article_board_order": "article_board_order",
+    "firm_id": "sec_firm_order", "board_id": "article_board_order",
     "firm_nm": "firm_nm", "mkt_tp": "mkt_tp", "reg_dt": "reg_dt",
     "article_title": "article_title", "telegram_url": "telegram_url",
     "pdf_url": "pdf_url", "writer": "writer", "gemini_summary": "gemini_summary",
