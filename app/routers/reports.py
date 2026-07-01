@@ -45,12 +45,13 @@ async def get_reports(
         clauses.append("r.stock_names ILIKE %s"); params.append(f'%"{stock}"%')
 
     where = "WHERE " + " AND ".join(clauses) if clauses else ""
-    sql = f"SELECT * FROM v_reports_api r {where} ORDER BY r.reg_dt DESC, r.report_id DESC LIMIT %s OFFSET %s"
+    is_pg = db.get_bind().dialect.name == "postgresql"
+    _from = "v_reports_api" if is_pg else "data_main_daily_send"
+    placeholder = "%s" if is_pg else "?"
+    sql = f"SELECT * FROM {_from} r {where} ORDER BY r.reg_dt DESC, r.report_id DESC LIMIT {placeholder} OFFSET {placeholder}"
     params.extend([limit, offset])
 
     from ..routers.external_api import _view_row_to_api_item
-    if db.get_bind().dialect.name != "postgresql":
-        sql = sql.replace("%s", "?")
     conn = db.get_bind().raw_connection()
     try:
         cur = conn.cursor()
@@ -99,14 +100,14 @@ async def get_summary_notifications(
     try:
         conn = db.get_bind().raw_connection()
         cur = conn.cursor()
-        sql = """SELECT n.id, n.report_id, n.article_title, n.firm_nm, n.summary_model,
-                   n.message, n.created_at, r.pdf_url, r.telegram_url, r.article_url, r.firm_id
-            FROM tbl_sec_reports_notifications n
-            LEFT JOIN tbl_sec_reports r ON n.report_id = r.report_id
-            ORDER BY n.created_at DESC LIMIT %s"""
-        if db.get_bind().dialect.name != "postgresql":
-            sql = sql.replace("%s", "?")
-        cur.execute(sql, [limit])
+        is_pg = db.get_bind().dialect.name == "postgresql"
+        r_tbl = "tbl_sec_reports" if is_pg else "data_main_daily_send"
+        n_tbl = "tbl_sec_reports_notifications" if is_pg else "data_main_daily_send_notifications"
+        ph = "%s" if is_pg else "?"
+        cur.execute(f"SELECT n.id, n.report_id, n.article_title, n.firm_nm, n.summary_model,"
+                    f" n.message, n.created_at, r.pdf_url, r.telegram_url, r.article_url, r.firm_id"
+                    f" FROM {n_tbl} n LEFT JOIN {r_tbl} r ON n.report_id = r.report_id"
+                    f" ORDER BY n.created_at DESC LIMIT {ph}", [limit])
         rows = [dict(zip([d[0] for d in cur.description], row)) for row in cur.fetchall()]
         conn.close()
         return [ReportNotificationResponse(
@@ -130,14 +131,14 @@ async def get_send_history(
     try:
         conn = db.get_bind().raw_connection()
         cur = conn.cursor()
-        sql = """SELECT h.id, h.report_id, h.user_id, h.keyword, h.sent_at,
-                   r.article_title, r.firm_nm
-            FROM tbl_report_send_history h
-            LEFT JOIN tbl_sec_reports r ON h.report_id = r.report_id
-            ORDER BY h.sent_at DESC LIMIT %s"""
-        if db.get_bind().dialect.name != "postgresql":
-            sql = sql.replace("%s", "?")
-        cur.execute(sql, [limit])
+        is_pg = db.get_bind().dialect.name == "postgresql"
+        r_tbl = "tbl_sec_reports" if is_pg else "data_main_daily_send"
+        h_tbl = "tbl_report_send_history" if is_pg else "data_main_daily_send_history"
+        ph = "%s" if is_pg else "?"
+        cur.execute(f"SELECT h.id, h.report_id, h.user_id, h.keyword, h.sent_at,"
+                    f" r.article_title, r.firm_nm"
+                    f" FROM {h_tbl} h LEFT JOIN {r_tbl} r ON h.report_id = r.report_id"
+                    f" ORDER BY h.sent_at DESC LIMIT {ph}", [limit])
         rows = [dict(zip([d[0] for d in cur.description], row)) for row in cur.fetchall()]
         conn.close()
         return [ReportSentHistoryResponse(**r) for r in rows]
