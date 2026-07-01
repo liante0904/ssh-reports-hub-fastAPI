@@ -46,7 +46,7 @@ async def get_reports(
 
     where = "WHERE " + " AND ".join(clauses) if clauses else ""
     is_pg = db.get_bind().dialect.name == "postgresql"
-    _from = "v_reports_api" if is_pg else "data_main_daily_send"
+    _from = "v_reports_api" if is_pg else "tbl_sec_reports"
     placeholder = "%s" if is_pg else "?"
     sql = f"SELECT * FROM {_from} r {where} ORDER BY r.reg_dt DESC, r.report_id DESC LIMIT {placeholder} OFFSET {placeholder}"
     params.extend([limit, offset])
@@ -101,8 +101,8 @@ async def get_summary_notifications(
         conn = db.get_bind().raw_connection()
         cur = conn.cursor()
         is_pg = db.get_bind().dialect.name == "postgresql"
-        r_tbl = "tbl_sec_reports" if is_pg else "data_main_daily_send"
-        n_tbl = "tbl_sec_reports_notifications" if is_pg else "data_main_daily_send_notifications"
+        r_tbl = "tbl_sec_reports"
+        n_tbl = "tbl_sec_reports_notifications"
         ph = "%s" if is_pg else "?"
         cur.execute(f"SELECT n.id, n.report_id, n.article_title, n.firm_nm, n.summary_model,"
                     f" n.message, n.created_at, r.pdf_url, r.telegram_url, r.article_url, r.firm_id"
@@ -132,12 +132,11 @@ async def get_send_history(
         conn = db.get_bind().raw_connection()
         cur = conn.cursor()
         is_pg = db.get_bind().dialect.name == "postgresql"
-        r_tbl = "tbl_sec_reports" if is_pg else "data_main_daily_send"
-        h_tbl = "tbl_report_send_history" if is_pg else "data_main_daily_send_history"
+        ph = "%s" if is_pg else "?"
         ph = "%s" if is_pg else "?"
         cur.execute(f"SELECT h.id, h.report_id, h.user_id, h.keyword, h.sent_at,"
                     f" r.article_title, r.firm_nm"
-                    f" FROM {h_tbl} h LEFT JOIN {r_tbl} r ON h.report_id = r.report_id"
+                    f" FROM tbl_report_send_history h LEFT JOIN tbl_sec_reports r ON h.report_id = r.report_id"
                     f" ORDER BY h.sent_at DESC LIMIT {ph}", [limit])
         rows = [dict(zip([d[0] for d in cur.description], row)) for row in cur.fetchall()]
         conn.close()
