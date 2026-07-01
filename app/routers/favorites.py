@@ -75,8 +75,8 @@ async def get_favorites(
 
         items.append({
             "report_id": report.report_id,
-            "sec_firm_order": report.sec_firm_order,
-            "article_board_order": report.article_board_order,
+            "sec_firm_order": report.firm_id,
+            "article_board_order": report.board_id,
             "firm_nm": report.firm_nm,
             "article_title": report.article_title,
             "article_url": report.article_url,
@@ -86,7 +86,7 @@ async def get_favorites(
             "telegram_url": report.telegram_url,
             "writer": report.writer,
             "reg_dt": report.reg_dt,
-            "save_time": report.save_time,
+            "scraped_at": report.save_at.isoformat() if report.save_at else report.save_time,
             "key": report.report_unique_key,
             "mkt_tp": report.mkt_tp,
             "gemini_summary": report.gemini_summary,

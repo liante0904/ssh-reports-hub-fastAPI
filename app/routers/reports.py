@@ -32,9 +32,9 @@ async def get_reports(
     if writer:
         query = query.filter(SecReport.writer.ilike(f"%{writer}%"))
     if company is not None:
-        query = query.filter(SecReport.sec_firm_order == company)
+        query = query.filter(SecReport.firm_id == company)
     if board is not None:
-        query = query.filter(SecReport.article_board_order == board)
+        query = query.filter(SecReport.board_id == board)
     if has_summary:
         query = query.filter(
             SecReport.gemini_summary.isnot(None),
@@ -103,7 +103,7 @@ async def get_summary_notifications(
                 SecReport.pdf_url,
                 SecReport.telegram_url,
                 SecReport.article_url,
-                SecReport.sec_firm_order,
+                SecReport.firm_id,
             )
             .outerjoin(SecReport, ReportNotification.report_id == SecReport.report_id)
             .order_by(ReportNotification.created_at.desc())
@@ -116,7 +116,7 @@ async def get_summary_notifications(
                 report_id=n.report_id,
                 article_title=n.article_title,
                 firm_nm=n.firm_nm,
-                sec_firm_order=sec_firm_order,
+                sec_firm_order=firm_id,
                 summary_model=n.summary_model,
                 message=n.message,
                 pdf_url=pdf_url,
@@ -124,7 +124,7 @@ async def get_summary_notifications(
                 article_url=article_url,
                 created_at=n.created_at,
             )
-            for n, pdf_url, telegram_url, article_url, sec_firm_order in rows
+            for n, pdf_url, telegram_url, article_url, firm_id in rows
         ]
     except Exception as e:
         import logging

@@ -1,6 +1,6 @@
 import time
 from sqlalchemy import Column, Integer, String, Boolean, BigInteger, LargeBinary, ForeignKey, Date, DateTime, Float, Numeric, func, Text, UniqueConstraint, Index
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, synonym
 from .database import Base
 
 class TimestampMixin:
@@ -53,19 +53,19 @@ class ReportKeyword(Base, TimestampMixin):
 class SecReport(Base):
     __tablename__ = MAIN_TABLE_NAME
     report_id = Column(BigInteger, primary_key=True, index=True)
-    sec_firm_order = Column(Integer)
-    article_board_order = Column(Integer)
+    firm_id = Column('firm_id', Integer)
+    board_id = Column('board_id', Integer)
     firm_nm = Column(String)
     article_title = Column(String)
     article_url = Column(String)
     telegram_sent = Column(Boolean, default=False)
     download_status_yn = Column(String, default="")
     download_url = Column(String)
-    save_time = Column(String)  # deprecated → save_at
+    save_time = Column(String)  # deprecated
     save_at = Column(DateTime(timezone=True))
     reg_dt = Column(String, default="")
     writer = Column(String, default="")
-    key = Column(String, unique=True)
+    key = Column(String, unique=True)  # deprecated, use report_unique_key
     report_unique_key = Column(String, unique=True)
     telegram_url = Column(String, default="")
     mkt_tp = Column(String, default="KR")

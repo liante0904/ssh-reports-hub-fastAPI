@@ -354,11 +354,11 @@ async def get_system_metrics(
         # 최근 레포트
         latest = (
             reports_db.query(SecReport)
-            .order_by(SecReport.save_time.desc())
+            .order_by(SecReport.save_at.desc().nullslast())
             .first()
         )
         if latest:
-            last_report_time = latest.save_time
+            last_report_time = latest.save_at.isoformat() if latest.save_at else latest.save_time
             last_report_title = latest.article_title
             last_report_firm = latest.firm_nm
 
@@ -421,15 +421,15 @@ async def get_firm_health(
 
     rows = (
         reports_db.query(
-            SecReport.sec_firm_order,
+            SecReport.firm_id,
             SecReport.firm_nm,
             func.count(SecReport.report_id),
             func.max(SecReport.reg_dt),
-            func.max(SecReport.save_time),
+            func.max(SecReport.save_at),
         )
-        .filter(SecReport.sec_firm_order.isnot(None))
-        .group_by(SecReport.sec_firm_order, SecReport.firm_nm)
-        .order_by(SecReport.sec_firm_order)
+        .filter(SecReport.firm_id.isnot(None))
+        .group_by(SecReport.firm_id, SecReport.firm_nm)
+        .order_by(SecReport.firm_id)
         .all()
     )
 

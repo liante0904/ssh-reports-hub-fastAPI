@@ -31,7 +31,7 @@ async def get_companies(request: Request, db: Session = Depends(get_reports_db))
         SecFirmInfo.description,
         func.count(SecReport.report_id).label("report_count")
     ).join(
-        SecReport, SecFirmInfo.sec_firm_order == SecReport.sec_firm_order
+        SecReport, SecFirmInfo.sec_firm_order == SecReport.firm_id
     ).filter(
         _sent_report_filter()
     ).group_by(
@@ -72,8 +72,8 @@ async def get_boards(
         func.count(SecReport.report_id).label("report_count")
     ).outerjoin(
         SecReport, and_(
-            SecBoardInfo.sec_firm_order == SecReport.sec_firm_order,
-            SecBoardInfo.article_board_order == SecReport.article_board_order,
+            SecBoardInfo.sec_firm_order == SecReport.firm_id,
+            SecBoardInfo.article_board_order == SecReport.board_id,
             _sent_report_filter()
         )
     ).filter(
@@ -126,7 +126,7 @@ def _report_to_api_item(report: SecReport, is_direct: bool = None) -> dict:
     # Legacy fields not yet in SecReportResponse schema
     item["send_user"] = None
     item["download_status_yn"] = None
-    item["save_time"] = report.save_time
+    item["scraped_at"] = report.save_at.isoformat() if report.save_at else report.save_time
     item["key"] = report.report_unique_key
     item["mkt_tp"] = report.mkt_tp
     item["article_url"] = report.article_url
@@ -191,9 +191,9 @@ def _apply_search_filters(
     elif mkt_tp == "domestic":
         query = query.filter(SecReport.mkt_tp == "KR")
     if company is not None:
-        query = query.filter(SecReport.sec_firm_order == company)
+        query = query.filter(SecReport.firm_id == company)
     if board is not None:
-        query = query.filter(SecReport.article_board_order == board)
+        query = query.filter(SecReport.board_id == board)
     if tag:
         query = query.filter(SecReport.tags.ilike(f'%"{tag}"%'))
     if sector:
@@ -224,8 +224,8 @@ async def get_industry_reports(
     board_filters = []
     for firm_order, board_orders in INDUSTRY_REPORT_BOARD_FILTERS:
         f = and_(
-            SecReport.sec_firm_order == firm_order,
-            SecReport.article_board_order.in_(board_orders),
+            SecReport.firm_id == firm_order,
+            SecReport.board_id.in_(board_orders),
         )
         if firm_order == 19:
             # DB증권: 종목코드(숫자 5~6자리)가 포함된 제목은 기업분석이므로 제외
@@ -234,7 +234,7 @@ async def get_industry_reports(
         board_filters.append(f)
 
     query = db.query(SecReport, SecFirmInfo.is_direct_link).outerjoin(
-        SecFirmInfo, SecReport.sec_firm_order == SecFirmInfo.sec_firm_order
+        SecFirmInfo, SecReport.firm_id == SecFirmInfo.sec_firm_order
     ).filter(
         or_(*board_filters),
         _sent_report_filter(),
@@ -294,7 +294,7 @@ async def get_global_reports(
     국내 종목코드나 국내 시장 관련 키워드가 제목에 포함된 리포트는 제외됩니다.
     """
     query = db.query(SecReport, SecFirmInfo.is_direct_link).outerjoin(
-        SecFirmInfo, SecReport.sec_firm_order == SecFirmInfo.sec_firm_order
+        SecFirmInfo, SecReport.firm_id == SecFirmInfo.sec_firm_order
     ).filter(
         _sent_report_filter(),
         SecReport.mkt_tp != "KR",
@@ -321,10 +321,10 @@ async def get_global_reports(
     else:
         query = query.order_by(
             SecReport.reg_dt.desc(),
-            SecReport.save_time.desc(),
+            SecReport.save_at.desc().nullslast(),
             SecReport.report_id.desc(),
-            SecReport.sec_firm_order,
-            SecReport.article_board_order,
+            SecReport.firm_id,
+            SecReport.board_id,
         )
 
     rows, has_more = _paginate_query(query, limit, offset)
@@ -360,7 +360,7 @@ async def search_reports(
     (2026년 하반기 전망, 연간 전망 등)
     """
     query = db.query(SecReport, SecFirmInfo.is_direct_link).outerjoin(
-        SecFirmInfo, SecReport.sec_firm_order == SecFirmInfo.sec_firm_order
+        SecFirmInfo, SecReport.firm_id == SecFirmInfo.sec_firm_order
     )
     if report_id is not None:
         query = query.filter(SecReport.report_id == report_id)
@@ -409,10 +409,10 @@ async def search_reports(
     else:
         query = query.order_by(
             SecReport.reg_dt.desc(),
-            SecReport.save_time.desc(),
+            SecReport.save_at.desc().nullslast(),
             SecReport.report_id.desc(),
-            SecReport.sec_firm_order,
-            SecReport.article_board_order,
+            SecReport.firm_id,
+            SecReport.board_id,
         )
 
     rows, has_more = _paginate_query(query, limit, offset)
@@ -482,11 +482,11 @@ async def get_ls_existing_keys(
     )
     try:
         with conn.cursor() as cur:
-            # LS증권(sec_firm_order=0)의 모든 key + writer 조회
+            # LS증권(firm_id=0)의 모든 key + writer 조회
             cur.execute("""
                 SELECT key, writer, article_title
                 FROM tbl_sec_reports
-                WHERE sec_firm_order = 0 AND key IS NOT NULL AND key != ''
+                WHERE firm_id = 0 AND key IS NOT NULL AND key != ''
                 ORDER BY key
             """)
             rows = cur.fetchall()
