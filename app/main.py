@@ -113,6 +113,7 @@ async def lifespan(app: FastAPI):
     _migrate_telegram_sent(reports_engine)
     _migrate_save_at(reports_engine)
     _ensure_llm_view(reports_engine)
+    _ensure_reports_api_view(reports_engine)
     _ensure_article_text_column(reports_engine)
 
     # cache warming
@@ -304,6 +305,37 @@ def _ensure_llm_view(engine) -> None:
             logger.info("Migration: v_reports LLM-friendly VIEW created/updated")
     except Exception as exc:
         logger.warning("Could not ensure llm VIEW (non-fatal): %s", exc)
+
+
+def _ensure_reports_api_view(engine) -> None:
+    """FastAPI external_api에서 사용할 통합 VIEW v_reports_api 생성"""
+    dialect_name = engine.dialect.name
+    
+    create_view_sql = """
+        SELECT 
+            r.report_id, r.firm_nm, r.reg_dt, r.article_title, r.telegram_url, r.pdf_url, r.writer, r.gemini_summary, r.tags, r.stock_names, r.sector,
+            r.target_price, r.rating, r.revision_type, r.report_type, r.stock_tickers,
+            r.firm_id AS sec_firm_order, r.board_id AS article_board_order,
+            r.save_time, r.save_at, r.report_unique_key, r.mkt_tp, r.article_url, r.download_url, r.summary_time, r.summary_model, r.telegram_sent,
+            p.report_id AS pdf_report_id, p.file_path AS pdf_file_path, p.file_size AS pdf_file_size, p.page_count AS pdf_page_count, p.archive_status AS pdf_archive_status, p.file_name AS pdf_file_name, p.has_text AS pdf_has_text, p.is_encrypted AS pdf_is_encrypted, p.storage_backend AS pdf_storage_backend, p.storage_key AS pdf_storage_key, p.author AS pdf_author, p.created_at AS pdf_created_at, p.updated_at AS pdf_updated_at, p.last_accessed_at AS pdf_last_accessed_at,
+            fs.summary_id AS fs_summary_id, fs.source_page_url AS fs_source_page_url, fs.report_date AS fs_report_date, fs.company_name AS fs_company_name, fs.company_code AS fs_company_code, fs.report_title AS fs_report_title, fs.summary_text AS fs_summary_text, fs.opinion AS fs_opinion, fs.target_price AS fs_target_price, fs.prev_close AS fs_prev_close, fs.provider AS fs_provider, fs.author AS fs_author, fs.article_url AS fs_article_url, fs.pdf_url AS fs_pdf_url, fs.report_key AS fs_report_key, fs.item_rank AS fs_item_rank, fs.sync_status AS fs_sync_status, fs.created_at AS fs_created_at, fs.updated_at AS fs_updated_at,
+            f.telegram_update_yn AS is_direct
+        FROM tbl_sec_reports r
+        LEFT OUTER JOIN tbl_sec_reports_pdf_archive p ON r.report_id = p.report_id
+        LEFT OUTER JOIN tbl_fnguide_report_summaries fs ON r.fnguide_summary_id = fs.summary_id
+        LEFT OUTER JOIN tbm_sec_firm_info f ON r.firm_id = f.sec_firm_order
+    """
+
+    try:
+        with engine.begin() as conn:
+            if dialect_name == "postgresql":
+                conn.execute(text(f"CREATE OR REPLACE VIEW v_reports_api AS {create_view_sql}"))
+            else:
+                conn.execute(text("DROP VIEW IF EXISTS v_reports_api"))
+                conn.execute(text(f"CREATE VIEW v_reports_api AS {create_view_sql}"))
+        logger.info("Migration: v_reports_api VIEW created/updated")
+    except Exception as exc:
+        logger.warning("Could not ensure v_reports_api VIEW (non-fatal): %s", exc)
 
 
 def _ensure_article_text_column(engine) -> None:
