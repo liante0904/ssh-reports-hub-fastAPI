@@ -8,7 +8,7 @@ from ..database import get_reports_db
 from ..models import SecReport
 from ..schemas import SecReportResponse, ReportNotificationResponse, ReportSentHistoryResponse
 
-router = APIRouter(tags=["reports"])
+router = APIRouter(prefix="/external/api", tags=["reports"])
 
 
 @router.get("/reports", response_model=list[SecReportResponse])
@@ -76,7 +76,6 @@ def load_llm_visibility() -> str:
     return "admin"
 
 @router.get("/reports/llm-setting", summary="LLM 요약 노출 범위 설정 조회 (Public)")
-@router.get("/external/api/reports/llm-setting", summary="LLM 요약 노출 범위 설정 조회 (Public)")
 async def get_llm_setting():
     """
     프론트엔드 및 일반 사용자에게 LLM 요약 노출 설정을 제공합니다.
@@ -86,7 +85,6 @@ async def get_llm_setting():
 
 
 @router.get("/reports/notifications", response_model=list[ReportNotificationResponse], summary="AI 요약 완료 알림 목록 조회")
-@router.get("/external/api/reports/notifications", response_model=list[ReportNotificationResponse], summary="AI 요약 완료 알림 목록 조회")
 async def get_summary_notifications(
     limit: Annotated[int, Query(ge=1, le=100)] = 30,
     db: Session = Depends(get_reports_db),
@@ -133,7 +131,6 @@ async def get_summary_notifications(
 
 
 @router.get("/reports/send-history", response_model=list[ReportSentHistoryResponse], summary="리포트 알림 내역 조회 (텔레그램 발송 + AI 요약 완료)")
-@router.get("/external/api/reports/send-history", response_model=list[ReportSentHistoryResponse], summary="리포트 알림 내역 조회 (텔레그램 발송 + AI 요약 완료)")
 async def get_send_history(
     limit: Annotated[int, Query(ge=1, le=100)] = 30,
     db: Session = Depends(get_reports_db),
@@ -186,7 +183,6 @@ class LLMSettingUpdate(BaseModel):
     visibility: str = Field(..., pattern="^(admin|telegram)$", description="노출 범위 ('admin' 또는 'telegram')")
 
 @router.get("/admin/llm-setting", summary="LLM 요약 노출 설정 조회 (Admin)")
-@router.get("/external/api/admin/llm-setting", summary="LLM 요약 노출 설정 조회 (Admin)")
 async def get_llm_setting_admin(
     current_user: User = Depends(require_admin),
 ):
@@ -194,7 +190,6 @@ async def get_llm_setting_admin(
     return {"visibility": visibility}
 
 @router.post("/admin/llm-setting", summary="LLM 요약 노출 설정 변경 (Admin)")
-@router.post("/external/api/admin/llm-setting", summary="LLM 요약 노출 설정 변경 (Admin)")
 async def update_llm_setting_admin(
     payload: LLMSettingUpdate,
     current_user: User = Depends(require_admin),
@@ -215,7 +210,6 @@ from ..models import NotificationRead, User
 
 
 @router.get("/reports/notifications/read-status", summary="알림 읽음 상태 조회")
-@router.get("/external/api/reports/notifications/read-status", summary="알림 읽음 상태 조회")
 async def get_notification_reads(
     user: User = Depends(get_user_from_token),
     db: Session = Depends(get_reports_db),
@@ -227,7 +221,6 @@ async def get_notification_reads(
 
 
 @router.post("/reports/notifications/mark-read", summary="알림 읽음 처리")
-@router.post("/external/api/reports/notifications/mark-read", summary="알림 읽음 처리")
 async def mark_notification_read(
     notification_key: str = Body(..., embed=True),
     user: User = Depends(get_user_from_token),
@@ -244,7 +237,6 @@ async def mark_notification_read(
 
 
 @router.post("/reports/notifications/mark-all-read", summary="전체 읽음 처리")
-@router.post("/external/api/reports/notifications/mark-all-read", summary="전체 읽음 처리")
 async def mark_all_notifications_read(
     keys: list = Body(default=[]),
     user: User = Depends(get_user_from_token),
