@@ -144,7 +144,7 @@ async def test_health_check(client):
 @pytest.mark.anyio
 async def test_get_reports_pagination(client):
     """리포트 목록 조회 및 페이지네이션 테스트"""
-    response = await client.get("/reports?limit=5")
+    response = await client.get("/external/api/reports?limit=5")
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data, list)
@@ -160,7 +160,7 @@ async def test_get_reports_pagination(client):
 @pytest.mark.anyio
 async def test_get_reports_search(client):
     """리포트 검색 (q=) 기능 테스트"""
-    response = await client.get("/reports?q=반도체&limit=5")
+    response = await client.get("/external/api/reports?q=반도체&limit=5")
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data, list)
@@ -171,7 +171,7 @@ async def test_get_reports_search(client):
 @pytest.mark.anyio
 async def test_get_reports_writer_filter(client):
     """리포트 작성자(writer=) 필터 테스트"""
-    response = await client.get("/reports?writer=김선우&limit=5")
+    response = await client.get("/external/api/reports?writer=김선우&limit=5")
     assert response.status_code == 200
     data = response.json()
     assert all("김선우" in r["writer"] for r in data)
@@ -180,7 +180,7 @@ async def test_get_reports_writer_filter(client):
 @pytest.mark.anyio
 async def test_get_reports_has_summary_filter(client):
     """리포트 AI 요약(has_summary=true) 필터 테스트"""
-    response = await client.get("/reports?has_summary=true&limit=5")
+    response = await client.get("/external/api/reports?has_summary=true&limit=5")
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data, list)
@@ -192,7 +192,7 @@ async def test_get_reports_has_summary_filter(client):
 @pytest.mark.anyio
 async def test_get_reports_board_filter(client):
     """증권사+게시판 필터 조합 테스트"""
-    response = await client.get("/reports?company=20&board=1&limit=10")
+    response = await client.get("/external/api/reports?company=20&board=1&limit=10")
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data, list)
@@ -203,7 +203,7 @@ async def test_get_reports_board_filter(client):
 @pytest.mark.anyio
 async def test_get_reports_json_serialization_full_set(client):
     """Pydantic JSON 직렬화 회귀 테스트 (memoryview/bytes 필드 검증)"""
-    response = await client.get("/reports?limit=100")
+    response = await client.get("/external/api/reports?limit=100")
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data, list)

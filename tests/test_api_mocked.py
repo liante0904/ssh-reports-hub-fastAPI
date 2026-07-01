@@ -55,7 +55,7 @@ async def test_health_check_mocked(client):
 @pytest.mark.anyio
 async def test_get_reports_empty_db(client):
     """빈 DB에서의 리포트 조회 테스트"""
-    response = await client.get("/reports?limit=5")
+    response = await client.get("/external/api/reports?limit=5")
     assert response.status_code == 200
     assert response.json() == []
 
