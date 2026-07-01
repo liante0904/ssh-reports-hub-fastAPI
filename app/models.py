@@ -55,6 +55,8 @@ class SecReport(Base):
     report_id = Column(BigInteger, primary_key=True, index=True)
     firm_id = Column('firm_id', Integer)
     board_id = Column('board_id', Integer)
+    sec_firm_order = synonym("firm_id")
+    article_board_order = synonym("board_id")
     firm_nm = Column(String)
     article_title = Column(String)
     article_url = Column(String)
