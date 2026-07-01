@@ -144,145 +144,54 @@ BASE_SELECT_SQL = """
     SELECT * FROM v_reports_api r
 """
 
-def _row_to_dict(row) -> dict:
-    if hasattr(row, "_mapping"):
-        m = row._mapping
-    else:
-        m = row
-    
-    pdf_archive = None
-    if m.get("pdf_report_id") is not None:
-        pdf_archive = {
-            "report_id": m.get("pdf_report_id"),
-            "file_path": m.get("pdf_file_path"),
-            "file_size": m.get("pdf_file_size"),
-            "page_count": m.get("pdf_page_count"),
-            "archive_status": m.get("pdf_archive_status"),
-            "file_name": m.get("pdf_file_name"),
-            "has_text": m.get("pdf_has_text"),
-            "is_encrypted": m.get("pdf_is_encrypted"),
-            "storage_backend": m.get("pdf_storage_backend"),
-            "storage_key": m.get("pdf_storage_key"),
-            "author": m.get("pdf_author"),
-            "created_at": m.get("pdf_created_at"),
-            "updated_at": m.get("pdf_updated_at"),
-            "last_accessed_at": m.get("pdf_last_accessed_at"),
-        }
-        
-    fnguide_summary = None
-    if m.get("fs_summary_id") is not None:
-        fnguide_summary = {
-            "summary_id": m.get("fs_summary_id"),
-            "source_page_url": m.get("fs_source_page_url"),
-            "report_date": m.get("fs_report_date"),
-            "company_name": m.get("fs_company_name"),
-            "company_code": m.get("fs_company_code"),
-            "report_title": m.get("fs_report_title"),
-            "summary_text": m.get("fs_summary_text"),
-            "opinion": m.get("fs_opinion"),
-            "target_price": m.get("fs_target_price"),
-            "prev_close": m.get("fs_prev_close"),
-            "provider": m.get("fs_provider"),
-            "author": m.get("fs_author"),
-            "article_url": m.get("fs_article_url"),
-            "pdf_url": m.get("fs_pdf_url"),
-            "report_key": m.get("fs_report_key"),
-            "item_rank": m.get("fs_item_rank"),
-            "sync_status": m.get("fs_sync_status"),
-            "created_at": m.get("fs_created_at"),
-            "updated_at": m.get("fs_updated_at"),
-        }
-        
-    return {
-        "report_id": m.get("report_id"),
-        "firm_nm": m.get("firm_nm"),
-        "is_direct": m.get("is_direct"),
-        "reg_dt": m.get("reg_dt"),
-        "article_title": m.get("article_title"),
-        "telegram_url": m.get("telegram_url"),
-        "pdf_url": m.get("pdf_url"),
-        "writer": m.get("writer"),
-        "gemini_summary": m.get("gemini_summary"),
-        "tags": m.get("tags"),
-        "stock_names": m.get("stock_names"),
-        "sector": m.get("sector"),
-        "target_price": float(m.get("target_price")) if m.get("target_price") is not None else None,
-        "rating": m.get("rating"),
-        "revision_type": m.get("revision_type"),
-        "report_type": m.get("report_type"),
-        "stock_tickers": m.get("stock_tickers"),
-        "sec_firm_order": m.get("sec_firm_order"),
-        "article_board_order": m.get("article_board_order"),
-        "save_time": m.get("save_time"),
-        "save_at": m.get("save_at"),
-        "report_unique_key": m.get("report_unique_key"),
-        "mkt_tp": m.get("mkt_tp"),
-        "article_url": m.get("article_url"),
-        "download_url": m.get("download_url"),
-        "summary_time": m.get("summary_time"),
-        "summary_model": m.get("summary_model"),
-        "telegram_sent": m.get("telegram_sent"),
-        "pdf_archive": pdf_archive,
-        "fnguide_summary": fnguide_summary,
-    }
+_VIEW_TO_API_KEY_MAP = {
+    "sec_firm_order": "sec_firm_order", "article_board_order": "article_board_order",
+    "firm_nm": "firm_nm", "mkt_tp": "mkt_tp", "reg_dt": "reg_dt",
+    "article_title": "article_title", "telegram_url": "telegram_url",
+    "pdf_url": "pdf_url", "writer": "writer", "gemini_summary": "gemini_summary",
+    "tags": "tags", "stock_names": "stock_names", "sector": "sector",
+    "target_price": "target_price", "rating": "rating",
+    "revision_type": "revision_type", "report_type": "report_type",
+    "stock_tickers": "stock_tickers", "save_time": "save_time",
+    "save_at": "save_at", "report_unique_key": "report_unique_key",
+    "article_url": "article_url", "download_url": "download_url",
+    "summary_time": "summary_time", "summary_model": "summary_model",
+    "telegram_sent": "telegram_sent", "report_id": "report_id",
+}
 
-def _report_to_api_item(report, is_direct: bool = None) -> dict:
-    if isinstance(report, dict):
-        item = SecReportResponse.model_validate(report).model_dump(mode="json")
-        save_at = report.get("save_at")
-        save_time = report.get("save_time")
-        report_unique_key = report.get("report_unique_key")
-        mkt_tp = report.get("mkt_tp")
-        article_url = report.get("article_url")
-        download_url = report.get("download_url")
-        summary_time = report.get("summary_time")
-        summary_model = report.get("summary_model")
-        telegram_sent = report.get("telegram_sent")
-        is_direct_val = (report.get("is_direct") == 'Y') if report.get("is_direct") is not None else None
-    else:
-        item = SecReportResponse.model_validate(report).model_dump(mode="json")
-        save_at = getattr(report, "save_at", None)
-        save_time = getattr(report, "save_time", None)
-        report_unique_key = getattr(report, "report_unique_key", None)
-        mkt_tp = getattr(report, "mkt_tp", None)
-        article_url = getattr(report, "article_url", None)
-        download_url = getattr(report, "download_url", None)
-        summary_time = getattr(report, "summary_time", None)
-        summary_model = getattr(report, "summary_model", None)
-        telegram_sent = getattr(report, "telegram_sent", None)
-        is_direct_val = None
-
-    if is_direct is not None:
-        item["is_direct"] = is_direct
-    elif is_direct_val is not None:
-        item["is_direct"] = is_direct_val
-
+def _view_row_to_api_item(row) -> dict:
+    """v_reports_api 뷰 row → API 응답 dict. 컬럼 추가 시 _VIEW_TO_API_KEY_MAP 만 수정."""
+    m = row._mapping if hasattr(row, "_mapping") else row
+    item = {api_key: m.get(view_col) for view_col, api_key in _VIEW_TO_API_KEY_MAP.items()}
+    item["is_direct"] = (str(m.get("is_direct", "")) == "Y") or None
     item["send_user"] = None
     item["download_status_yn"] = None
-    
-    if isinstance(save_at, datetime):
-        scraped_at = save_at.isoformat()
-    elif isinstance(save_at, str):
-        if " " in save_at:
-            scraped_at = save_at.replace(" ", "T")
-        else:
-            scraped_at = save_at
-    elif save_at:
-        scraped_at = str(save_at)
-    else:
-        scraped_at = save_time
-
-    item["scraped_at"] = scraped_at
-    item["key"] = report_unique_key
-    item["report_unique_key"] = report_unique_key
-    item["mkt_tp"] = mkt_tp
-    item["article_url"] = article_url
-    item["download_url"] = download_url
-    item["summary_time"] = summary_time
-    item["summary_model"] = summary_model
-    item["telegram_sent"] = telegram_sent
+    # scraped_at: view가 이미 계산해서 제공
+    item["scraped_at"] = m.get("scraped_at")
+    if isinstance(item["scraped_at"], datetime):
+        item["scraped_at"] = item["scraped_at"].isoformat()
+    elif item["scraped_at"] is None:
+        item["scraped_at"] = m.get("save_time")
+    item["key"] = m.get("report_unique_key")
+    # nested objects
+    item["pdf_archive"] = {k[4:]: m.get(k) for k in (
+        "pdf_report_id","pdf_file_path","pdf_file_size","pdf_page_count",
+        "pdf_archive_status","pdf_file_name","pdf_has_text","pdf_is_encrypted",
+        "pdf_storage_backend","pdf_storage_key","pdf_author",
+        "pdf_created_at","pdf_updated_at","pdf_last_accessed_at"
+    )} if m.get("pdf_report_id") is not None else None
+    item["fnguide_summary"] = {k[3:]: m.get(k) for k in (
+        "fs_summary_id","fs_source_page_url","fs_report_date","fs_company_name",
+        "fs_company_code","fs_report_title","fs_summary_text","fs_opinion",
+        "fs_target_price","fs_prev_close","fs_provider","fs_author",
+        "fs_article_url","fs_pdf_url","fs_report_key","fs_item_rank",
+        "fs_sync_status","fs_created_at","fs_updated_at"
+    )} if m.get("fs_summary_id") is not None else None
+    # float cast
+    if item.get("target_price") is not None:
+        try: item["target_price"] = float(item["target_price"])
+        except (ValueError, TypeError): pass
     return item
-
 
 def _collection_response(
     request: Request,
@@ -291,14 +200,7 @@ def _collection_response(
     offset: int,
     has_more: bool,
 ) -> dict:
-    processed_items = []
-    for item in items:
-        try:
-            report, is_direct_link = item
-        except (TypeError, ValueError):
-            processed_items.append(_report_to_api_item(item))
-        else:
-            processed_items.append(_report_to_api_item(report, is_direct_link == 'Y'))
+    processed_items = [_view_row_to_api_item(r) for r in items]
 
     return {
         "items": processed_items,
@@ -432,7 +334,7 @@ async def get_industry_reports(
     sql_base = f"{BASE_SELECT_SQL} {where_str} {order_by}"
     
     rows, has_more = _paginate_query(sql_base, limit, offset, db=db, params=params)
-    rows = [_row_to_dict(r) for r in rows]
+    rows = [_view_row_to_api_item(r) for r in rows]
     return _collection_response(request, rows, limit, offset, has_more)
 
 
@@ -490,7 +392,7 @@ async def get_global_reports(
     sql_base = f"{BASE_SELECT_SQL} {where_str} {order_by}"
     
     rows, has_more = _paginate_query(sql_base, limit, offset, db=db, params=params)
-    rows = [_row_to_dict(r) for r in rows]
+    rows = [_view_row_to_api_item(r) for r in rows]
     return _collection_response(request, rows, limit, offset, has_more)
 
 
@@ -566,7 +468,7 @@ async def search_reports(
     sql_base = f"{BASE_SELECT_SQL} {where_str} {order_by}"
     
     rows, has_more = _paginate_query(sql_base, limit, offset, db=db, params=params)
-    rows = [_row_to_dict(r) for r in rows]
+    rows = [_view_row_to_api_item(r) for r in rows]
     return _collection_response(request, rows, limit, offset, has_more)
 
 
@@ -589,7 +491,7 @@ async def get_recent_reports(
 
     sql_base = f"{BASE_SELECT_SQL} WHERE r.telegram_sent = TRUE {order_by}"
     rows, has_more = _paginate_query(sql_base, limit, offset, db=db)
-    rows = [_row_to_dict(r) for r in rows]
+    rows = [_view_row_to_api_item(r) for r in rows]
     return _collection_response(request, rows, limit, offset, has_more)
 
 
