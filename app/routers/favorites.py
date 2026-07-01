@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_keywords_db, get_reports_db
 from ..dependencies import get_user_from_token
-from ..models import ReportFavorite, SecReport, User
+from ..models import ReportFavorite, User
 
 logger = logging.getLogger("app.favorites")
 router = APIRouter(prefix="/favorites", tags=["favorites"])
@@ -20,88 +20,65 @@ router = APIRouter(prefix="/favorites", tags=["favorites"])
 @router.get("/")
 async def get_favorites(
     current_user: User = Depends(get_user_from_token),
-    keywords_db: Session = Depends(get_keywords_db),
     reports_db: Session = Depends(get_reports_db),
 ):
     """내 즐겨찾기 목록을 조회합니다. tbl_sec_reports와 JOIN하여 유효한 리포트만 반환합니다."""
-    # 1. 사용자의 즐겨찾기 report_id 목록 조회 (즐겨찾기 추가 시간 내림차순)
-    favs = (
-        keywords_db.query(ReportFavorite)
-        .filter(ReportFavorite.user_id == current_user.id)
-        .order_by(ReportFavorite.created_at.desc())
-        .all()
-    )
+    sql = """
+        SELECT r.report_id, r.firm_id, r.board_id, r.firm_nm, r.article_title,
+               r.article_url, r.telegram_sent, r.download_url, r.pdf_url, r.telegram_url,
+               r.writer, r.reg_dt, r.save_at, r.save_time, r.report_unique_key, r.mkt_tp,
+               r.gemini_summary, r.summary_time, r.summary_model,
+               p.page_count AS pdf_page_count, p.file_name AS pdf_file_name,
+               p.has_text AS pdf_has_text, p.is_encrypted AS pdf_is_encrypted,
+               p.author AS pdf_author,
+               COALESCE(r.save_at,
+                   CASE WHEN left(r.save_time,10) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+                        THEN (left(r.save_time,10) || ' 00:00:00+09')::timestamptz
+                        ELSE NULL END
+               ) AS scraped_at,
+               f.created_at AS favorite_created_at
+        FROM tbl_sec_reports_favorites f
+        JOIN tbl_sec_reports r ON f.report_id = r.report_id
+        LEFT JOIN tbl_sec_reports_pdf_archive p ON r.report_id = p.report_id
+        WHERE f.user_id = %s
+        ORDER BY f.created_at DESC
+    """
+    conn = reports_db.get_bind().raw_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(sql, [current_user.id])
+        cols = [d[0] for d in cur.description]
+        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+    finally:
+        conn.close()
 
-    if not favs:
-        return {"items": [], "count": 0, "total_favorites": 0}
-
-    # 2. tbl_sec_reports에서 실제 존재하는 리포트만 조회
-    fav_report_ids = [f.report_id for f in favs]
-    existing_reports = (
-        reports_db.query(SecReport)
-        .options(joinedload(SecReport.pdf_archive))
-        .filter(SecReport.report_id.in_(fav_report_ids))
-        .all()
-    )
-
-    # 3. 리포트 ID → 리포트 객체 매핑
-    report_map = {r.report_id: r for r in existing_reports}
-
-    # 4. 즐겨찾기 추가 시간 순서를 유지하면서 리포트 데이터 구성
     items = []
-    for fav in favs:
-        report = report_map.get(fav.report_id)
-        if report is None:
-            continue  # tbl_sec_reports에 존재하지 않는 report_id는 제외
-
-        archive = report.pdf_archive
-        pdf_archive_data = None
-        if archive:
-            pdf_archive_data = {
-                "file_path": archive.file_path,
-                "file_size": archive.file_size,
-                "page_count": archive.page_count,
-                "archive_status": archive.archive_status,
-                "file_name": archive.file_name,
-                "has_text": archive.has_text,
-                "is_encrypted": archive.is_encrypted,
-                "storage_backend": archive.storage_backend,
-                "storage_key": archive.storage_key,
-                "author": archive.author,
-                "created_at": archive.created_at.isoformat() if archive.created_at else None,
-                "updated_at": archive.updated_at.isoformat() if archive.updated_at else None,
-                "last_accessed_at": archive.last_accessed_at.isoformat() if archive.last_accessed_at else None,
-            }
-
+    for r in rows:
         items.append({
-            "report_id": report.report_id,
-            "sec_firm_order": report.firm_id,
-            "article_board_order": report.board_id,
-            "firm_nm": report.firm_nm,
-            "article_title": report.article_title,
-            "article_url": report.article_url,
-            "telegram_sent": report.telegram_sent,
-            "download_url": report.download_url,
-            "pdf_url": report.pdf_url,
-            "telegram_url": report.telegram_url,
-            "writer": report.writer,
-            "reg_dt": report.reg_dt,
-            "scraped_at": report.save_at.isoformat() if report.save_at else report.save_time,
-            "key": report.report_unique_key,
-            "report_unique_key": report.report_unique_key,
-            "mkt_tp": report.mkt_tp,
-            "gemini_summary": report.gemini_summary,
-            "summary_time": report.summary_time,
-            "summary_model": report.summary_model,
-            "favorite_created_at": fav.created_at.isoformat() if fav.created_at else None,
-            "pdf_archive": pdf_archive_data,
+            "report_id": r["report_id"],
+            "sec_firm_order": r["firm_id"],
+            "article_board_order": r["board_id"],
+            "firm_nm": r["firm_nm"],
+            "article_title": r["article_title"],
+            "article_url": r["article_url"],
+            "telegram_sent": r["telegram_sent"],
+            "download_url": r["download_url"],
+            "pdf_url": r["pdf_url"],
+            "telegram_url": r["telegram_url"],
+            "writer": r["writer"],
+            "reg_dt": r["reg_dt"],
+            "scraped_at": str(r["scraped_at"]) if r["scraped_at"] else r["save_time"],
+            "key": r["report_unique_key"],
+            "report_unique_key": r["report_unique_key"],
+            "mkt_tp": r["mkt_tp"],
+            "gemini_summary": r["gemini_summary"],
+            "summary_time": r["summary_time"],
+            "summary_model": r["summary_model"],
+            "favorite_created_at": r["favorite_created_at"].isoformat() if r["favorite_created_at"] else None,
+            "pdf_archive": {"page_count": r["pdf_page_count"], "file_name": r["pdf_file_name"], "has_text": r["pdf_has_text"], "is_encrypted": r["pdf_is_encrypted"], "author": r["pdf_author"]} if r["pdf_page_count"] is not None else None,
         })
 
-    return {
-        "items": items,
-        "count": len(items),
-        "total_favorites": len(favs),
-    }
+    return {"items": items, "count": len(items), "total_favorites": len(rows)}
 
 
 @router.post("/{report_id}")
