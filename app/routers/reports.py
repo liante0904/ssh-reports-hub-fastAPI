@@ -93,44 +93,28 @@ async def get_summary_notifications(
     limit: Annotated[int, Query(ge=1, le=100)] = 30,
     db: Session = Depends(get_reports_db),
 ):
-    """
-    tbl_sec_reports_notifications 기반 AI 요약 완료 알림.
-    필요한 모든 종류의 인앱 알림을 이 테이블에 push 하면 종버튼에 표시됩니다.
-    """
-    from ..models import ReportNotification, SecReport
+    """AI 요약 완료 알림. tbl_sec_reports_notifications + tbl_sec_reports JOIN."""
     try:
-        rows = (
-            db.query(
-                ReportNotification,
-                SecReport.pdf_url,
-                SecReport.telegram_url,
-                SecReport.article_url,
-                SecReport.firm_id,
-            )
-            .outerjoin(SecReport, ReportNotification.report_id == SecReport.report_id)
-            .order_by(ReportNotification.created_at.desc())
-            .limit(limit)
-            .all()
-        )
-        return [
-            ReportNotificationResponse(
-                id=n.id,
-                report_id=n.report_id,
-                article_title=n.article_title,
-                firm_nm=n.firm_nm,
-                sec_firm_order=firm_id,
-                summary_model=n.summary_model,
-                message=n.message,
-                pdf_url=pdf_url,
-                telegram_url=telegram_url,
-                article_url=article_url,
-                created_at=n.created_at,
-            )
-            for n, pdf_url, telegram_url, article_url, firm_id in rows
-        ]
-    except Exception as e:
+        conn = db.get_bind().raw_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT n.id, n.report_id, n.article_title, n.firm_nm, n.summary_model,
+                   n.message, n.created_at, r.pdf_url, r.telegram_url, r.article_url, r.firm_id
+            FROM tbl_sec_reports_notifications n
+            LEFT JOIN tbl_sec_reports r ON n.report_id = r.report_id
+            ORDER BY n.created_at DESC LIMIT %s
+        """, [limit])
+        rows = [dict(zip([d[0] for d in cur.description], row)) for row in cur.fetchall()]
+        conn.close()
+        return [ReportNotificationResponse(
+            id=r["id"], report_id=r["report_id"], article_title=r["article_title"],
+            firm_nm=r["firm_nm"], sec_firm_order=r["firm_id"], summary_model=r["summary_model"],
+            message=r["message"], pdf_url=r["pdf_url"], telegram_url=r["telegram_url"],
+            article_url=r["article_url"], created_at=r["created_at"],
+        ) for r in rows]
+    except Exception:
         import logging
-        logging.getLogger(__name__).error(f"Failed to fetch notifications: {str(e)}")
+        logging.getLogger(__name__).error("Failed to fetch notifications", exc_info=True)
         return []
 
 
@@ -139,42 +123,23 @@ async def get_send_history(
     limit: Annotated[int, Query(ge=1, le=100)] = 30,
     db: Session = Depends(get_reports_db),
 ):
-    """
-    tbl_report_send_history 기반 통합 알림 내역.
-    텔레그램 키워드 알림 발송 내역과 AI 요약 완료 알림을 최근순으로 조회합니다.
-    """
-    from ..models import ReportSentHistory
+    """통합 알림 내역 (텔레그램 키워드 + AI 요약)."""
     try:
-        rows = (
-            db.query(
-                ReportSentHistory.id,
-                ReportSentHistory.report_id,
-                ReportSentHistory.user_id,
-                ReportSentHistory.keyword,
-                ReportSentHistory.sent_at,
-                SecReport.article_title,
-                SecReport.firm_nm,
-            )
-            .outerjoin(SecReport, ReportSentHistory.report_id == SecReport.report_id)
-            .order_by(ReportSentHistory.sent_at.desc())
-            .limit(limit)
-            .all()
-        )
-        return [
-            ReportSentHistoryResponse(
-                id=row.id,
-                report_id=row.report_id,
-                user_id=row.user_id,
-                keyword=row.keyword,
-                sent_at=row.sent_at,
-                article_title=row.article_title,
-                firm_nm=row.firm_nm,
-            )
-            for row in rows
-        ]
-    except Exception as e:
+        conn = db.get_bind().raw_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT h.id, h.report_id, h.user_id, h.keyword, h.sent_at,
+                   r.article_title, r.firm_nm
+            FROM tbl_report_send_history h
+            LEFT JOIN tbl_sec_reports r ON h.report_id = r.report_id
+            ORDER BY h.sent_at DESC LIMIT %s
+        """, [limit])
+        rows = [dict(zip([d[0] for d in cur.description], row)) for row in cur.fetchall()]
+        conn.close()
+        return [ReportSentHistoryResponse(**r) for r in rows]
+    except Exception:
         import logging
-        logging.getLogger(__name__).error(f"Failed to fetch send history: {str(e)}")
+        logging.getLogger(__name__).error("Failed to fetch send history", exc_info=True)
         return []
 
 
