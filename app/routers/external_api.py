@@ -477,6 +477,10 @@ async def search_reports(
 @cache_response(ttl=120, prefix="api")
 async def get_recent_reports(
     request: Request,
+    company: Annotated[Optional[int], Query(ge=0)] = None,
+    board: Annotated[Optional[int], Query(ge=0)] = None,
+    writer: Annotated[Optional[str], Query(min_length=1, max_length=100)] = None,
+    title: Annotated[Optional[str], Query(min_length=1, max_length=100)] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
     db: Session = Depends(get_reports_db),
@@ -489,8 +493,20 @@ async def get_recent_reports(
     order_by = "ORDER BY r.save_at DESC NULLS LAST, r.report_id DESC" if is_postgres else \
                "ORDER BY CASE WHEN r.save_at IS NULL THEN 1 ELSE 0 END, r.save_at DESC, r.report_id DESC"
 
-    sql_base = f"{BASE_SELECT_SQL} WHERE r.telegram_sent = TRUE {order_by}"
-    rows, has_more = _paginate_query(sql_base, limit, offset, db=db)
+    clauses = ["r.telegram_sent = TRUE"]
+    params = []
+    if company is not None:
+        clauses.append("r.firm_id = %s"); params.append(company)
+    if board is not None:
+        clauses.append("r.board_id = %s"); params.append(board)
+    if writer:
+        clauses.append("r.writer ILIKE %s"); params.append(f"%{writer}%")
+    if title:
+        clauses.append("r.article_title ILIKE %s"); params.append(f"%{title}%")
+
+    where = "WHERE " + " AND ".join(clauses)
+    sql_base = f"{BASE_SELECT_SQL} {where} {order_by}"
+    rows, has_more = _paginate_query(sql_base, limit, offset, db=db, params=params)
     rows = [_view_row_to_api_item(r) for r in rows]
     return _collection_response(request, rows, limit, offset, has_more)
 
