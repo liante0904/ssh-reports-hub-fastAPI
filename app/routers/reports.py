@@ -26,33 +26,37 @@ async def get_reports(
     offset: Annotated[int, Query(ge=0)] = 0,
     db: Session = Depends(get_reports_db),
 ):
-    query = db.query(SecReport)
+    clauses, params = [], []
     if q:
-        query = query.filter(SecReport.article_title.ilike(f"%{q}%"))
+        clauses.append("r.article_title ILIKE %s"); params.append(f"%{q}%")
     if writer:
-        query = query.filter(SecReport.writer.ilike(f"%{writer}%"))
+        clauses.append("r.writer ILIKE %s"); params.append(f"%{writer}%")
     if company is not None:
-        query = query.filter(SecReport.firm_id == company)
+        clauses.append("r.firm_id = %s"); params.append(company)
     if board is not None:
-        query = query.filter(SecReport.board_id == board)
+        clauses.append("r.board_id = %s"); params.append(board)
     if has_summary:
-        query = query.filter(
-            SecReport.gemini_summary.isnot(None),
-            SecReport.gemini_summary != "",
-            SecReport.gemini_summary != " ",
-        )
+        clauses.append("r.gemini_summary IS NOT NULL AND r.gemini_summary NOT IN ('',' ')")
     if tag:
-        query = query.filter(SecReport.tags.ilike(f'%"{tag}"%'))
+        clauses.append("r.tags ILIKE %s"); params.append(f'%"{tag}"%')
     if sector:
-        query = query.filter(SecReport.sector.ilike(f"%{sector}%"))
+        clauses.append("r.sector ILIKE %s"); params.append(f"%{sector}%")
     if stock:
-        query = query.filter(SecReport.stock_names.ilike(f'%"{stock}"%'))
-    return query.options(
-        joinedload(SecReport.pdf_archive),
-        joinedload(SecReport.fnguide_summary)
-    ).order_by(
-        SecReport.reg_dt.desc(), SecReport.report_id.desc()
-    ).offset(offset).limit(limit).all()
+        clauses.append("r.stock_names ILIKE %s"); params.append(f'%"{stock}"%')
+
+    where = "WHERE " + " AND ".join(clauses) if clauses else ""
+    sql = f"SELECT * FROM v_reports_api r {where} ORDER BY r.reg_dt DESC, r.report_id DESC LIMIT %s OFFSET %s"
+    params.extend([limit, offset])
+
+    from ..routers.external_api import _view_row_to_api_item
+    conn = db.get_bind().raw_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(sql, params)
+        rows = [dict(zip([d[0] for d in cur.description], row)) for row in cur.fetchall()]
+    finally:
+        conn.close()
+    return [_view_row_to_api_item(r) for r in rows]
 
 
 import json
