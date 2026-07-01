@@ -285,6 +285,7 @@ def _report_to_api_item(report, is_direct: bool = None) -> dict:
 
     item["scraped_at"] = scraped_at
     item["key"] = report_unique_key
+    item["report_unique_key"] = report_unique_key
     item["mkt_tp"] = mkt_tp
     item["article_url"] = article_url
     item["download_url"] = download_url
@@ -578,6 +579,30 @@ async def search_reports(
     rows, has_more = _paginate_query(sql_base, limit, offset, db=db, params=params)
     rows = [_row_to_dict(r) for r in rows]
     return _collection_response(request, rows, limit, offset, has_more)
+
+
+@router.get("/recent", summary="최근 리포트 조회 (Public API)")
+@router.get("/recent/", include_in_schema=False)
+@cache_response(ttl=120, prefix="api")
+async def get_recent_reports(
+    request: Request,
+    limit: Annotated[int, Query(ge=1, le=100)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    db: Session = Depends(get_reports_db),
+):
+    """
+    최근 발송된 리포트를 save_at 기준 내림차순으로 조회합니다.
+    /recent 프론트엔드 페이지 전용 — search API 부하 분산.
+    """
+    is_postgres = (db.get_bind().dialect.name == "postgresql")
+    order_by = "ORDER BY r.save_at DESC NULLS LAST, r.report_id DESC" if is_postgres else \
+               "ORDER BY CASE WHEN r.save_at IS NULL THEN 1 ELSE 0 END, r.save_at DESC, r.report_id DESC"
+
+    sql_base = f"{BASE_SELECT_SQL} WHERE r.telegram_sent = TRUE {order_by}"
+    rows, has_more = _paginate_query(sql_base, limit, offset, db=db)
+    rows = [_row_to_dict(r) for r in rows]
+    return _collection_response(request, rows, limit, offset, has_more)
+
 
 def _parse_json_field(v) -> list:
     import json

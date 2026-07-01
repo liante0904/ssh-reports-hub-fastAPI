@@ -13,7 +13,15 @@ class PdfArchiveResponse(BaseModel):
     pdf_url: Optional[str] = None
     download_url: Optional[str] = None
     telegram_url: Optional[str] = None
-    key: Optional[str] = None
+    key: Optional[str] = Field(
+        default=None,
+        deprecated=True,
+        description="[Deprecated] use report_unique_key instead. Will be removed in a future release.",
+    )
+    report_unique_key: Optional[str] = Field(
+        default=None,
+        description="PDF 아카이브 리포트의 canonical 식별 키",
+    )
     archive_status: Optional[str] = None
     file_name: Optional[str] = None
     download_status_yn: Optional[str] = None
@@ -88,6 +96,15 @@ class SecReportResponse(BaseModel):
     tags: Optional[list[str]] = None
     stock_names: Optional[list[str]] = None
     sector: Optional[str] = None
+    key: Optional[str] = Field(
+        default=None,
+        deprecated=True,
+        description="[Deprecated] use report_unique_key instead. Will be removed in a future release.",
+    )
+    report_unique_key: Optional[str] = Field(
+        default=None,
+        description="리포트 고유 식별 키 (key 필드의 canonical 이름)",
+    )
 
     # ── 프리미엄 5대 속성 스키마 선언 ──────────────────
     target_price: Optional[float] = None          # 목표주가

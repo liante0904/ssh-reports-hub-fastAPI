@@ -88,6 +88,7 @@ async def get_favorites(
             "reg_dt": report.reg_dt,
             "scraped_at": report.save_at.isoformat() if report.save_at else report.save_time,
             "key": report.report_unique_key,
+            "report_unique_key": report.report_unique_key,
             "mkt_tp": report.mkt_tp,
             "gemini_summary": report.gemini_summary,
             "summary_time": report.summary_time,
