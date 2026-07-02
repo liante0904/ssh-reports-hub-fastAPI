@@ -454,7 +454,7 @@ async def get_firm_health(
             status = "OK"
 
         firms.append({
-            "sec_firm_order": o,
+            "firm_id": o,
             "firm_nm": nm or "?",
             "total": total,
             "last_reg_dt": reg_str,

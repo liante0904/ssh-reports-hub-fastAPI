@@ -56,8 +56,8 @@ async def get_favorites(
     for r in rows:
         items.append({
             "report_id": r["report_id"],
-            "sec_firm_order": r["firm_id"],
-            "article_board_order": r["board_id"],
+            "firm_id": r["firm_id"],
+            "board_id": r["board_id"],
             "firm_nm": r["firm_nm"],
             "article_title": r["article_title"],
             "article_url": r["article_url"],

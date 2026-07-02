@@ -47,16 +47,16 @@ async def get_companies(request: Request, db: Session = Depends(get_reports_db))
     실제로 리포트가 존재하는 증권사 목록과 리포트 개수를 반환합니다.
     """
     sql = """
-        SELECT 
-            f.sec_firm_order,
-            f.firm_nm AS sec_firm_name,
+        SELECT
+            f.sec_firm_order AS firm_id,
+            f.firm_nm,
             f.telegram_update_yn AS is_direct_link,
             f.comment_pdf_url AS description,
             COUNT(r.report_id) AS report_count
         FROM tbm_sec_firm_info f
         JOIN tbl_sec_reports r ON f.sec_firm_order = r.firm_id
         WHERE r.telegram_sent = TRUE
-        GROUP BY 
+        GROUP BY
             f.sec_firm_order,
             f.firm_nm,
             f.telegram_update_yn,
@@ -67,8 +67,8 @@ async def get_companies(request: Request, db: Session = Depends(get_reports_db))
 
     return [
         CompanyResponse(
-            firm_id=row["sec_firm_order"],
-            name=row["sec_firm_name"],
+            firm_id=row["firm_id"],
+            name=row["firm_nm"],
             is_direct=(row["is_direct_link"] == 'Y'),
             note=row["description"],
             report_count=row["report_count"]
@@ -87,19 +87,19 @@ async def get_boards(
     리포트가 존재하는 게시판 목록을 반환합니다.
     """
     sql = """
-        SELECT 
-            b.sec_firm_order,
-            b.article_board_order,
+        SELECT
+            b.sec_firm_order AS firm_id,
+            b.article_board_order AS board_id,
             b.board_nm,
             b.label_nm,
             COUNT(r.report_id) AS report_count
         FROM tbm_sec_firm_board_info b
-        LEFT OUTER JOIN tbl_sec_reports r ON 
-            b.sec_firm_order = r.firm_id AND 
-            b.article_board_order = r.board_id AND 
+        LEFT OUTER JOIN tbl_sec_reports r ON
+            b.sec_firm_order = r.firm_id AND
+            b.article_board_order = r.board_id AND
             r.telegram_sent = TRUE
         WHERE b.sec_firm_order = %s
-        GROUP BY 
+        GROUP BY
             b.sec_firm_order,
             b.article_board_order,
             b.board_nm,
@@ -110,8 +110,8 @@ async def get_boards(
 
     return [
         BoardResponse(
-            sec_firm_order=row["sec_firm_order"],
-            article_board_order=row["article_board_order"],
+            firm_id=row["firm_id"],
+            board_id=row["board_id"],
             board_nm=row["board_nm"],
             label_nm=row["label_nm"],
             report_count=row["report_count"]
@@ -145,7 +145,7 @@ BASE_SELECT_SQL = """
 """
 
 _VIEW_TO_API_KEY_MAP = {
-    "firm_id": "sec_firm_order", "board_id": "article_board_order",
+    "firm_id": "firm_id", "board_id": "board_id",
     "firm_nm": "firm_nm", "mkt_tp": "mkt_tp", "reg_dt": "reg_dt",
     "article_title": "article_title", "telegram_url": "telegram_url",
     "pdf_url": "pdf_url", "writer": "writer", "gemini_summary": "gemini_summary",

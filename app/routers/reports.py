@@ -112,7 +112,7 @@ async def get_summary_notifications(
         conn.close()
         return [ReportNotificationResponse(
             id=r["id"], report_id=r["report_id"], article_title=r["article_title"],
-            firm_nm=r["firm_nm"], sec_firm_order=r["firm_id"], summary_model=r["summary_model"],
+            firm_nm=r["firm_nm"], firm_id=r["firm_id"], summary_model=r["summary_model"],
             message=r["message"], pdf_url=r["pdf_url"], telegram_url=r["telegram_url"],
             article_url=r["article_url"], created_at=r["created_at"],
         ) for r in rows]
