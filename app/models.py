@@ -1,6 +1,6 @@
 import time
 from sqlalchemy import Column, Integer, String, Boolean, BigInteger, LargeBinary, ForeignKey, Date, DateTime, Float, Numeric, func, Text, UniqueConstraint, Index
-from sqlalchemy.orm import relationship, synonym
+from sqlalchemy.orm import relationship
 from .database import Base
 
 class TimestampMixin:
@@ -55,8 +55,15 @@ class SecReport(Base):
     report_id = Column(BigInteger, primary_key=True, index=True)
     firm_id = Column('firm_id', Integer)
     board_id = Column('board_id', Integer)
-    sec_firm_order = synonym("firm_id")
-    article_board_order = synonym("board_id")
+
+    # backward-compat: 구 코드에서 sec_firm_order/article_board_order 로 접근 지원
+    @property
+    def sec_firm_order(self):
+        return self.firm_id
+
+    @property
+    def article_board_order(self):
+        return self.board_id
     firm_nm = Column(String)
     article_title = Column(String)
     article_url = Column(String)
