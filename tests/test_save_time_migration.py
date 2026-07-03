@@ -1,5 +1,5 @@
 import pytest
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -32,15 +32,13 @@ async def client():
         is_admin=True,
     ))
     
-    # 1. save_at이 없고 save_time만 있는 예전 데이터 (명시적으로 report_id 부여 및 필수 필드 매핑)
+    # 1. save_at이 아직 없는 데이터
     r1 = SecReport(
         report_id=1,
         firm_nm="A증권",
         article_title="예전 리포트",
-        reg_dt="20260420",
-        key="key-1",
+        report_date=date(2026, 4, 20),
         report_unique_key="key-1",
-        save_time="2026-04-20 10:00:00",
         save_at=None,
         sec_firm_order=1,
         telegram_sent=True,
@@ -52,10 +50,8 @@ async def client():
         report_id=2,
         firm_nm="B증권",
         article_title="신규 리포트",
-        reg_dt="20260421",
-        key="key-2",
+        report_date=date(2026, 4, 21),
         report_unique_key="key-2",
-        save_time="2026-04-21 11:00:00",
         save_at=datetime(2026, 4, 21, 11, 0, 0, tzinfo=timezone.utc),
         sec_firm_order=2,
         telegram_sent=True,
@@ -116,8 +112,7 @@ async def test_external_api_scraped_at_fallback(client):
     item1 = report_map.get("key-1")
     assert item1 is not None
     assert "save_time" not in item1
-    # save_time 값이 scraped_at으로 폴백되었는지 확인
-    assert item1["scraped_at"] == "2026-04-20 10:00:00"
+    assert item1["scraped_at"] is None
     
     # save_at이 있는 B증권 리포트
     item2 = report_map.get("key-2")
@@ -150,13 +145,13 @@ async def test_admin_firm_health_save_at(client):
     firms = data["firms"]
     assert len(firms) >= 2
     
-    # B증권 (sec_firm_order=2)의 last_save 검증 (DateTime.isoformat() -> "2026-04-21")
-    firm_b = next((f for f in firms if f["sec_firm_order"] == 2), None)
+    # B증권 (firm_id=2)의 last_save 검증 (DateTime.isoformat() -> "2026-04-21")
+    firm_b = next((f for f in firms if f["firm_id"] == 2), None)
     assert firm_b is not None
     assert firm_b["last_save"] == "2026-04-21"
     
-    # A증권 (sec_firm_order=1)의 last_save 검증 (save_at이 None이므로 None 반환)
-    firm_a = next((f for f in firms if f["sec_firm_order"] == 1), None)
+    # A증권 (firm_id=1)의 last_save 검증 (save_at이 None이므로 None 반환)
+    firm_a = next((f for f in firms if f["firm_id"] == 1), None)
     assert firm_a is not None
     assert firm_a["last_save"] is None
 
@@ -177,8 +172,8 @@ async def test_favorites_api_scraped_at(client):
     assert "save_time" not in fav2
     assert "2026-04-21T11:00:00" in fav2["scraped_at"]
     
-    # report_id=1 에 대응되는 favorite 아이템 검증 (save_time 폴백)
+    # report_id=1 에 대응되는 favorite 아이템 검증 (save_at 없음)
     fav1 = next((x for x in items if x["key"] == "key-1"), None)
     assert fav1 is not None
     assert "save_time" not in fav1
-    assert fav1["scraped_at"] == "2026-04-20 10:00:00"
+    assert fav1["scraped_at"] is None

@@ -340,7 +340,7 @@ class FnGuideMatcher:
                     "report_id": report.report_id,
                     "sec_title": report.article_title,
                     "sec_firm": report.firm_nm,
-                    "sec_date": report.reg_dt,
+                    "sec_date": str(report.report_date) if hasattr(report, 'report_date') and report.report_date else report.reg_dt,
                     "fnguide_summary_id": best_match.summary_id,
                     "fnguide_title": best_match.report_title,
                     "fnguide_stock": best_match.company_name,

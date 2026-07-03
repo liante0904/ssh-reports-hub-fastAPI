@@ -61,18 +61,26 @@ class SecReport(Base):
     def sec_firm_order(self):
         return self.firm_id
 
+    @sec_firm_order.setter
+    def sec_firm_order(self, value):
+        self.firm_id = value
+
     @property
     def article_board_order(self):
         return self.board_id
+
+    @article_board_order.setter
+    def article_board_order(self, value):
+        self.board_id = value
     firm_nm = Column(String)
     article_title = Column(String)
     article_url = Column(String)
     telegram_sent = Column(Boolean, default=False)
     download_status_yn = Column(String, default="")
     download_url = Column(String)
-    save_time = Column(String)  # deprecated
     save_at = Column(DateTime(timezone=True))
-    reg_dt = Column(String, default="")
+    report_date = Column(Date, nullable=True)  # DATE 타입 정규화 컬럼 (reg_dt → report_date 마이그레이션 완료)
+    reg_dt = Column(String, default="")  # DEPRECATED: use report_date (DATE). DROP after scraper migration.
     writer = Column(String, default="")
     key = Column(String, unique=True)  # deprecated, use report_unique_key
     report_unique_key = Column(String, unique=True)
@@ -217,4 +225,3 @@ class NotificationRead(Base, TimestampMixin):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(BigInteger, nullable=False, index=True)
     notification_key = Column(String, nullable=False)  # telegram:12345 or summary:12345
-

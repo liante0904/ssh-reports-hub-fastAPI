@@ -232,29 +232,7 @@ def _migrate_telegram_sent(engine) -> None:
                 logger.info("Migration: added telegram_sent column to %s", tname)
 
 
-def _migrate_save_at(engine) -> None:
-    """save_time (VARCHAR ISO) → save_at (TIMESTAMPTZ) 마이그레이션"""
-    inspector = inspect(engine)
-    for tname in ["tbl_sec_reports"]:
-        if tname not in inspector.get_table_names():
-            continue
-        cols = {c["name"] for c in inspector.get_columns(tname)}
-        if "save_at" not in cols:
-            with engine.begin() as conn:
-                conn.execute(text(f"ALTER TABLE {tname} ADD COLUMN save_at TIMESTAMPTZ"))
-                logger.info("Migration: added save_at column to %s", tname)
-        async def _sync_save_at():
-            try:
-                with engine.begin() as conn:
-                    result = conn.execute(text(
-                        f"UPDATE {tname} SET save_at = save_time::TIMESTAMPTZ "
-                        f"WHERE save_at IS NULL AND save_time IS NOT NULL AND save_time != ''"
-                    ))
-                    if result.rowcount > 0:
-                        logger.info("Migration: synced save_at for %d rows in %s", result.rowcount, tname)
-            except Exception as e:
-                logger.warning("Migration save_at sync failed: %s", e)
-        asyncio.ensure_future(_sync_save_at())
+# _migrate_save_at removed — save_time → save_at migration completed (2026-07-03)
 
 
 def _ensure_llm_view(engine) -> None:
@@ -279,8 +257,8 @@ def _ensure_llm_view(engine) -> None:
                     telegram_url        AS send_url,
                     pdf_url             AS canonical_pdf_url,
                     report_unique_key   AS raw_unique_key,
-                    reg_dt              AS published_date,
-                    save_time           AS scraped_at,
+                    COALESCE(report_date::text, reg_dt) AS published_date,
+                    save_at             AS scraped_at,
                     save_at             AS scraped_at_tz,
                     writer              AS analyst_name,
                     gemini_summary      AS llm_summary,
@@ -316,8 +294,8 @@ def _ensure_reports_api_view(engine) -> None:
             r.report_id, 
             r.firm_nm AS firm_name, 
             r.firm_nm AS firm_nm,
-            r.reg_dt AS report_date, 
-            r.reg_dt AS reg_dt,
+            r.report_date AS report_date,
+            COALESCE(r.report_date::text, r.reg_dt) AS reg_dt,
             r.article_title AS title, 
             r.article_title AS article_title,
             r.telegram_url, 
@@ -334,7 +312,7 @@ def _ensure_reports_api_view(engine) -> None:
             r.stock_tickers,
             r.firm_id AS firm_id,
             r.board_id AS board_id,
-            r.save_time AS save_time, 
+            r.save_at::text AS save_time,
             r.save_at AS scraped_at, 
             r.save_at AS save_at,
             r.report_unique_key, 

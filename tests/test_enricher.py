@@ -10,6 +10,7 @@
 
 import json
 import pytest
+from datetime import date, datetime, timezone
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -77,19 +78,25 @@ def _seed_data(db):
         SecReport(
             report_id=1, sec_firm_order=0, article_board_order=0,
             firm_nm="LS증권", article_title="삼성전자 (005930) - 1Q25 Review: 메모리 반등 시작",
-            writer="홍길동", key="key1", reg_dt="20250501", save_time="2025-05-01T10:00:00",
+            writer="홍길동", report_unique_key="key1",
+            report_date=date(2025, 5, 1),
+            save_at=datetime(2025, 5, 1, 10, 0, 0, tzinfo=timezone.utc),
             telegram_sent=True, tags='["반도체", "실적 리뷰"]', stock_names='["삼성전자"]', sector="반도체",
         ),
         SecReport(
             report_id=2, sec_firm_order=4, article_board_order=0,
             firm_nm="KB증권", article_title="[2H26 산업 전망] 바이오; 트리거의 시작",
-            writer="김철수", key="key2", reg_dt="20250502", save_time="2025-05-02T10:00:00",
+            writer="김철수", report_unique_key="key2",
+            report_date=date(2025, 5, 2),
+            save_at=datetime(2025, 5, 2, 10, 0, 0, tzinfo=timezone.utc),
             telegram_sent=True, tags='["바이오", "산업 분석"]', stock_names="[]", sector="바이오/헬스케어",
         ),
         SecReport(
             report_id=3, sec_firm_order=0, article_board_order=0,
             firm_nm="LS증권", article_title="Daily Brief - 시장 동향",
-            writer="이영희", key="key3", reg_dt="20250503", save_time="2025-05-03T10:00:00",
+            writer="이영희", report_unique_key="key3",
+            report_date=date(2025, 5, 3),
+            save_at=datetime(2025, 5, 3, 10, 0, 0, tzinfo=timezone.utc),
             telegram_sent=False, tags="[]", stock_names="[]", sector="",
         ),
     ])

@@ -2,6 +2,7 @@
 관리자 메트릭 API 테스트
 """
 import pytest
+from datetime import date, datetime, timezone
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -38,19 +39,19 @@ async def client():
             report_id=100,
             firm_nm="테스트증권",
             article_title="시장 전망 리포트",
-            reg_dt="20260428",
+            report_date=date(2026, 4, 28),
             telegram_sent=True,
-            key="test-key-100",
-            save_time="2026-04-28T10:00:00",
+            report_unique_key="test-key-100",
+            save_at=datetime(2026, 4, 28, 10, 0, 0, tzinfo=timezone.utc),
         ),
         SecReport(
             report_id=101,
             firm_nm="KB증권",
             article_title="글로벌 마켓 인사이트",
-            reg_dt="20260428",
+            report_date=date(2026, 4, 28),
             telegram_sent=True,
-            key="test-key-101",
-            save_time="2026-04-28T09:30:00",
+            report_unique_key="test-key-101",
+            save_at=datetime(2026, 4, 28, 9, 30, 0, tzinfo=timezone.utc),
         ),
     ])
     db.commit()

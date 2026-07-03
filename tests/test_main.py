@@ -1,4 +1,5 @@
 import pytest
+from datetime import date, datetime, timezone
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -64,9 +65,10 @@ async def client():
                 article_board_order=0,
                 firm_nm="LS증권",
                 article_title="반도체 산업 전망",
-                reg_dt="20260428",
+                report_date=date(2026, 4, 28),
+                save_at=datetime(2026, 4, 28, 10, 0, 0, tzinfo=timezone.utc),
                 telegram_sent=True,
-                key="test-key-1",
+                report_unique_key="test-key-1",
                 writer="홍길동",
                 gemini_summary="AI 요약: 반도체 긍정적 전망",
                 mkt_tp="KR",
@@ -76,24 +78,26 @@ async def client():
                 sec_firm_order=20,
                 article_board_order=1,
                 firm_nm="메리츠증권",
-                reg_dt="20260421",
+                report_date=date(2026, 4, 21),
                 article_title="반도체 업황 점검",
                 telegram_sent=True,
                 writer="김선우",
                 mkt_tp="KR",
-                save_time="21-APR-26",
+                save_at=datetime(2026, 4, 21, 9, 0, 0, tzinfo=timezone.utc),
+                report_unique_key="test-key-3",
             ),
             SecReport(
                 report_id=2,
                 sec_firm_order=4,
                 article_board_order=0,
                 firm_nm="KB증권",
-                reg_dt="20260420",
+                report_date=date(2026, 4, 20),
                 article_title="Global Insights",
                 telegram_sent=True,
                 writer="김일혁",
                 mkt_tp="US",
-                save_time="20-APR-26",
+                save_at=datetime(2026, 4, 20, 9, 0, 0, tzinfo=timezone.utc),
+                report_unique_key="test-key-2",
             ),
         ]
     )
@@ -521,4 +525,3 @@ async def test_favorites_response_structure(client):
     assert "article_title" in item
     assert "favorite_created_at" in item
     assert "pdf_archive" in item
-

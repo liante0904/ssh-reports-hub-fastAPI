@@ -16,6 +16,14 @@ logger = logging.getLogger("app.favorites")
 router = APIRouter(prefix="/favorites", tags=["favorites"])
 
 
+def _format_datetime_value(value):
+    if value is None:
+        return None
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value).replace(" ", "T", 1)
+
+
 @router.get("")
 @router.get("/")
 async def get_favorites(
@@ -23,24 +31,21 @@ async def get_favorites(
     reports_db: Session = Depends(get_reports_db),
 ):
     """내 즐겨찾기 목록을 조회합니다. tbl_sec_reports와 JOIN하여 유효한 리포트만 반환합니다."""
-    sql = """
+    placeholder = "%s" if reports_db.get_bind().dialect.name == "postgresql" else "?"
+    sql = f"""
         SELECT r.report_id, r.firm_id, r.board_id, r.firm_nm, r.article_title,
                r.article_url, r.telegram_sent, r.download_url, r.pdf_url, r.telegram_url,
-               r.writer, r.reg_dt, r.save_at, r.save_time, r.report_unique_key, r.mkt_tp,
+               r.writer, r.reg_dt, r.save_at, r.report_unique_key, r.mkt_tp,
                r.gemini_summary, r.summary_time, r.summary_model,
                p.page_count AS pdf_page_count, p.file_name AS pdf_file_name,
                p.has_text AS pdf_has_text, p.is_encrypted AS pdf_is_encrypted,
                p.author AS pdf_author,
-               COALESCE(r.save_at,
-                   CASE WHEN left(r.save_time,10) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
-                        THEN (left(r.save_time,10) || ' 00:00:00+09')::timestamptz
-                        ELSE NULL END
-               ) AS scraped_at,
+               r.save_at AS scraped_at,
                f.created_at AS favorite_created_at
         FROM tbl_sec_reports_favorites f
         JOIN tbl_sec_reports r ON f.report_id = r.report_id
         LEFT JOIN tbl_sec_reports_pdf_archive p ON r.report_id = p.report_id
-        WHERE f.user_id = %s
+        WHERE f.user_id = {placeholder}
         ORDER BY f.created_at DESC
     """
     conn = reports_db.get_bind().raw_connection()
@@ -67,14 +72,14 @@ async def get_favorites(
             "telegram_url": r["telegram_url"],
             "writer": r["writer"],
             "reg_dt": r["reg_dt"],
-            "scraped_at": str(r["scraped_at"]) if r["scraped_at"] else r["save_time"],
+            "scraped_at": _format_datetime_value(r["scraped_at"]),
             "key": r["report_unique_key"],
             "report_unique_key": r["report_unique_key"],
             "mkt_tp": r["mkt_tp"],
             "gemini_summary": r["gemini_summary"],
             "summary_time": r["summary_time"],
             "summary_model": r["summary_model"],
-            "favorite_created_at": r["favorite_created_at"].isoformat() if r["favorite_created_at"] else None,
+            "favorite_created_at": _format_datetime_value(r["favorite_created_at"]),
             "pdf_archive": {"page_count": r["pdf_page_count"], "file_name": r["pdf_file_name"], "has_text": r["pdf_has_text"], "is_encrypted": r["pdf_is_encrypted"], "author": r["pdf_author"]} if r["pdf_page_count"] is not None else None,
         })
 

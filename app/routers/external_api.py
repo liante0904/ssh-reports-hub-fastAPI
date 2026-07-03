@@ -144,6 +144,12 @@ BASE_SELECT_SQL = """
     SELECT * FROM v_reports_api r
 """
 
+
+def _base_select_sql(db: Session) -> str:
+    if db.get_bind().dialect.name == "postgresql":
+        return BASE_SELECT_SQL
+    return "SELECT * FROM tbl_sec_reports r"
+
 _VIEW_TO_API_KEY_MAP = {
     "firm_id": "firm_id", "board_id": "board_id",
     "firm_nm": "firm_nm", "mkt_tp": "mkt_tp", "reg_dt": "reg_dt",
@@ -152,7 +158,7 @@ _VIEW_TO_API_KEY_MAP = {
     "tags": "tags", "stock_names": "stock_names", "sector": "sector",
     "target_price": "target_price", "rating": "rating",
     "revision_type": "revision_type", "report_type": "report_type",
-    "stock_tickers": "stock_tickers", "save_time": "save_time",
+    "stock_tickers": "stock_tickers",
     "save_at": "save_at", "report_unique_key": "report_unique_key",
     "article_url": "article_url", "download_url": "download_url",
     "summary_time": "summary_time", "summary_model": "summary_model",
@@ -168,11 +174,15 @@ def _view_row_to_api_item(row) -> dict:
     item["download_status_yn"] = None
     # scraped_at: view가 이미 계산해서 제공
     item["scraped_at"] = m.get("scraped_at")
+    if item["scraped_at"] is None:
+        item["scraped_at"] = m.get("save_at")
     if isinstance(item["scraped_at"], datetime):
         item["scraped_at"] = item["scraped_at"].isoformat()
-    elif item["scraped_at"] is None:
-        item["scraped_at"] = m.get("save_time")
+    elif isinstance(item["scraped_at"], str):
+        item["scraped_at"] = item["scraped_at"].replace(" ", "T", 1)
     item["key"] = m.get("report_unique_key")
+    for json_field in ("tags", "stock_names", "stock_tickers"):
+        item[json_field] = _parse_json_field(item.get(json_field))
     # nested objects
     item["pdf_archive"] = {k[4:]: m.get(k) for k in (
         "pdf_report_id","pdf_file_path","pdf_file_size","pdf_page_count",
@@ -314,7 +324,8 @@ async def get_industry_reports(
         clauses.append("r.article_title !~* '\\[[^\\]]+/(매수|매도|중립|시장수익률|Buy|Hold|Sell|Neutral|Outperform|Underperform|Not\\s*Rated|Trading\\s*Buy)'")
         clauses.append("r.article_title !~* '목표주가'")
 
-    clauses.append("(r.pdf_report_id IS NULL OR r.pdf_page_count IS NULL OR r.pdf_page_count >= 10)")
+    if is_postgres:
+        clauses.append("(r.pdf_report_id IS NULL OR r.pdf_page_count IS NULL OR r.pdf_page_count >= 10)")
     
     if last_report_id is not None:
         clauses.append("r.report_id < %s")
@@ -331,7 +342,7 @@ async def get_industry_reports(
         where_str = "WHERE " + " AND ".join(clauses)
         
     order_by = "ORDER BY r.report_id DESC"
-    sql_base = f"{BASE_SELECT_SQL} {where_str} {order_by}"
+    sql_base = f"{_base_select_sql(db)} {where_str} {order_by}"
     
     rows, has_more = _paginate_query(sql_base, limit, offset, db=db, params=params)
     rows = [_view_row_to_api_item(r) for r in rows]
@@ -381,15 +392,15 @@ async def get_global_reports(
         order_by = "ORDER BY r.report_id DESC"
     else:
         if is_postgres:
-            order_by = "ORDER BY r.reg_dt DESC, r.save_at DESC NULLS LAST, r.report_id DESC, r.firm_id, r.board_id"
+            order_by = "ORDER BY r.report_date DESC, r.save_at DESC NULLS LAST, r.report_id DESC, r.firm_id, r.board_id"
         else:
-            order_by = "ORDER BY r.reg_dt DESC, CASE WHEN r.save_at IS NULL THEN 1 ELSE 0 END, r.save_at DESC, r.report_id DESC, r.firm_id, r.board_id"
+            order_by = "ORDER BY r.report_date DESC, CASE WHEN r.save_at IS NULL THEN 1 ELSE 0 END, r.save_at DESC, r.report_id DESC, r.firm_id, r.board_id"
             
     where_str = ""
     if clauses:
         where_str = "WHERE " + " AND ".join(clauses)
         
-    sql_base = f"{BASE_SELECT_SQL} {where_str} {order_by}"
+    sql_base = f"{_base_select_sql(db)} {where_str} {order_by}"
     
     rows, has_more = _paginate_query(sql_base, limit, offset, db=db, params=params)
     rows = [_view_row_to_api_item(r) for r in rows]
@@ -457,15 +468,15 @@ async def search_reports(
         order_by = "ORDER BY r.report_id DESC"
     else:
         if is_postgres:
-            order_by = "ORDER BY r.reg_dt DESC, r.save_at DESC NULLS LAST, r.report_id DESC, r.firm_id, r.board_id"
+            order_by = "ORDER BY r.report_date DESC, r.save_at DESC NULLS LAST, r.report_id DESC, r.firm_id, r.board_id"
         else:
-            order_by = "ORDER BY r.reg_dt DESC, CASE WHEN r.save_at IS NULL THEN 1 ELSE 0 END, r.save_at DESC, r.report_id DESC, r.firm_id, r.board_id"
+            order_by = "ORDER BY r.report_date DESC, CASE WHEN r.save_at IS NULL THEN 1 ELSE 0 END, r.save_at DESC, r.report_id DESC, r.firm_id, r.board_id"
             
     where_str = ""
     if clauses:
         where_str = "WHERE " + " AND ".join(clauses)
         
-    sql_base = f"{BASE_SELECT_SQL} {where_str} {order_by}"
+    sql_base = f"{_base_select_sql(db)} {where_str} {order_by}"
     
     rows, has_more = _paginate_query(sql_base, limit, offset, db=db, params=params)
     rows = [_view_row_to_api_item(r) for r in rows]
@@ -486,12 +497,12 @@ async def get_recent_reports(
     db: Session = Depends(get_reports_db),
 ):
     """
-    최근 발송된 리포트를 save_at 기준 내림차순으로 조회합니다.
+    최근 발송된 리포트를 reg_dt(리포트 발행일) 기준 내림차순으로 조회합니다.
     /recent 프론트엔드 페이지 전용 — search API 부하 분산.
     """
     is_postgres = (db.get_bind().dialect.name == "postgresql")
-    order_by = "ORDER BY r.save_time DESC, r.save_at DESC NULLS LAST, r.report_id DESC" if is_postgres else \
-               "ORDER BY CASE WHEN r.save_at IS NULL THEN 1 ELSE 0 END, r.save_at DESC, r.report_id DESC"
+    order_by = "ORDER BY r.report_date DESC, r.save_at DESC NULLS LAST, r.report_id DESC" if is_postgres else \
+               "ORDER BY r.report_date DESC, CASE WHEN r.save_at IS NULL THEN 1 ELSE 0 END, r.save_at DESC, r.report_id DESC"
 
     clauses = ["r.telegram_sent = TRUE"]
     params = []
@@ -505,7 +516,7 @@ async def get_recent_reports(
         clauses.append("r.article_title ILIKE %s"); params.append(f"%{title}%")
 
     where = "WHERE " + " AND ".join(clauses)
-    sql_base = f"{BASE_SELECT_SQL} {where} {order_by}"
+    sql_base = f"{_base_select_sql(db)} {where} {order_by}"
     rows, has_more = _paginate_query(sql_base, limit, offset, db=db, params=params)
     rows = [_view_row_to_api_item(r) for r in rows]
     return _collection_response(request, rows, limit, offset, has_more)

@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 import os
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import psutil
@@ -29,11 +29,22 @@ from ..exceptions import (
     ValidationException,
     ServiceUnavailableException,
 )
-from ..models import SecReport, User
+from ..models import MAIN_TABLE_NAME, SecReport, User
 from ..settings import Settings
 
 logger = logging.getLogger("app.admin")
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+def _parse_report_date(value) -> date | None:
+    if isinstance(value, date):
+        return value
+    if value is None:
+        return None
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except ValueError:
+        return None
 
 
 def require_admin(current_user: User = Depends(get_user_from_token)) -> User:
@@ -311,10 +322,10 @@ async def get_system_metrics(
     try:
         total_reports = reports_db.query(func.count(SecReport.report_id)).scalar() or 0
 
-        today_str = datetime.now().strftime("%Y%m%d")
+        today_date = date.today()
         today_reports = (
             reports_db.query(func.count(SecReport.report_id))
-            .filter(SecReport.reg_dt == today_str)
+            .filter(SecReport.report_date == today_date)
             .scalar()
             or 0
         )
@@ -322,7 +333,7 @@ async def get_system_metrics(
         # 증권사별 오늘 건수 (PostgreSQL / SQLite 모두)
         rows = (
             reports_db.query(SecReport.firm_nm, func.count(SecReport.report_id))
-            .filter(SecReport.reg_dt == today_str)
+            .filter(SecReport.report_date == today_date)
             .group_by(SecReport.firm_nm)
             .order_by(func.count(SecReport.report_id).desc())
             .limit(10)
@@ -332,22 +343,23 @@ async def get_system_metrics(
         active_firms_today = len(reports_by_firm)
 
         # 최근 7일 일별 건수 (archive_history)
-        seven_days_ago = (datetime.now() - timedelta(days=6)).strftime("%Y%m%d")
+        seven_days_ago = date.today() - timedelta(days=6)
         daily_rows = (
-            reports_db.query(SecReport.reg_dt, func.count(SecReport.report_id))
-            .filter(SecReport.reg_dt >= seven_days_ago)
-            .group_by(SecReport.reg_dt)
-            .order_by(SecReport.reg_dt.asc())
+            reports_db.query(SecReport.report_date, func.count(SecReport.report_id))
+            .filter(SecReport.report_date >= seven_days_ago)
+            .group_by(SecReport.report_date)
+            .order_by(SecReport.report_date.asc())
             .all()
         )
-        daily_map = {row[0]: row[1] for row in daily_rows}
+        daily_map = {row[0]: row[1] for row in daily_rows if row[0] is not None}
         for i in range(7):
             d = (datetime.now() - timedelta(days=6 - i))
+            d_date = d.date()
             date_str = d.strftime("%Y%m%d")
             label = f"{d.month}/{d.day}"
             archive_history.append({
                 "label": label,
-                "count": daily_map.get(date_str, 0),
+                "count": daily_map.get(d_date, 0),
                 "date": date_str,
             })
 
@@ -358,7 +370,7 @@ async def get_system_metrics(
             .first()
         )
         if latest:
-            last_report_time = latest.save_at.isoformat() if latest.save_at else latest.save_time
+            last_report_time = latest.save_at.isoformat() if latest.save_at else None
             last_report_title = latest.article_title
             last_report_firm = latest.firm_nm
 
@@ -416,32 +428,37 @@ async def get_firm_health(
     전체 증권사별 마지막 레포트 일자 및 staleness 상태를 반환합니다.
     30일 이상 → STALE, 7일 이상 → WARN, 그 외 → OK
     """
-    from datetime import date
     today = date.today()
 
-    rows = (
-        reports_db.query(
-            SecReport.firm_id,
-            SecReport.firm_nm,
-            func.count(SecReport.report_id),
-            func.max(SecReport.reg_dt),
-            func.max(SecReport.save_at),
+    rows = reports_db.execute(
+        text(
+            f"""
+            SELECT
+                firm_id,
+                coalesce(firm_nm, '?') AS firm_nm,
+                COUNT(report_id) AS total,
+                MAX(report_date) AS last_report_date,
+                MAX(save_at) AS last_save_at
+            FROM {MAIN_TABLE_NAME}
+            WHERE firm_id IS NOT NULL
+            GROUP BY firm_id, firm_nm
+            ORDER BY firm_id
+            """
         )
-        .filter(SecReport.firm_id.isnot(None))
-        .group_by(SecReport.firm_id, SecReport.firm_nm)
-        .order_by(SecReport.firm_id)
-        .all()
     )
 
     firms = []
     alerts = []
     for r in rows:
-        o, nm, total, reg_dt, save_dt = r
-        reg_str = str(reg_dt or "")
-        try:
-            last_date = date(int(reg_str[:4]), int(reg_str[4:6]), int(reg_str[6:8]))
+        row = r._mapping
+        o = row["firm_id"]
+        nm = row["firm_nm"]
+        total = row["total"]
+        last_date = _parse_report_date(row["last_report_date"])
+        save_dt = row["last_save_at"]
+        if last_date:
             days_ago = (today - last_date).days
-        except Exception:
+        else:
             days_ago = -1
 
         if days_ago >= 30:
@@ -455,9 +472,9 @@ async def get_firm_health(
 
         firms.append({
             "firm_id": o,
-            "firm_nm": nm or "?",
+            "firm_nm": nm,
             "total": total,
-            "last_reg_dt": reg_str,
+            "last_reg_dt": last_date.isoformat() if last_date else "",
             "last_save": str(save_dt)[:10] if save_dt else None,
             "days_ago": days_ago,
             "status": status,
@@ -667,7 +684,6 @@ async def view_log_file(
         raise ValidationException("File is not a readable text file")
     except OSError as e:
         raise ServiceUnavailableException(f"Failed to read file: {e}")
-
 
 
 

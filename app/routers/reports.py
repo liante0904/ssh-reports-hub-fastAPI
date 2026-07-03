@@ -27,28 +27,29 @@ async def get_reports(
     db: Session = Depends(get_reports_db),
 ):
     clauses, params = [], []
-    if q:
-        clauses.append("r.article_title ILIKE %s"); params.append(f"%{q}%")
-    if writer:
-        clauses.append("r.writer ILIKE %s"); params.append(f"%{writer}%")
-    if company is not None:
-        clauses.append("r.firm_id = %s"); params.append(company)
-    if board is not None:
-        clauses.append("r.board_id = %s"); params.append(board)
-    if has_summary:
-        clauses.append("r.gemini_summary IS NOT NULL AND r.gemini_summary NOT IN ('',' ')")
-    if tag:
-        clauses.append("r.tags ILIKE %s"); params.append(f'%"{tag}"%')
-    if sector:
-        clauses.append("r.sector ILIKE %s"); params.append(f"%{sector}%")
-    if stock:
-        clauses.append("r.stock_names ILIKE %s"); params.append(f'%"{stock}"%')
-
-    where = "WHERE " + " AND ".join(clauses) if clauses else ""
     is_pg = db.get_bind().dialect.name == "postgresql"
     _from = "v_reports_api" if is_pg else "tbl_sec_reports"
     placeholder = "%s" if is_pg else "?"
-    sql = f"SELECT * FROM {_from} r {where} ORDER BY r.reg_dt DESC, r.report_id DESC LIMIT {placeholder} OFFSET {placeholder}"
+    like_op = "ILIKE" if is_pg else "LIKE"
+    if q:
+        clauses.append(f"r.article_title {like_op} {placeholder}"); params.append(f"%{q}%")
+    if writer:
+        clauses.append(f"r.writer {like_op} {placeholder}"); params.append(f"%{writer}%")
+    if company is not None:
+        clauses.append(f"r.firm_id = {placeholder}"); params.append(company)
+    if board is not None:
+        clauses.append(f"r.board_id = {placeholder}"); params.append(board)
+    if has_summary:
+        clauses.append("r.gemini_summary IS NOT NULL AND r.gemini_summary NOT IN ('',' ')")
+    if tag:
+        clauses.append(f"r.tags {like_op} {placeholder}"); params.append(f'%"{tag}"%')
+    if sector:
+        clauses.append(f"r.sector {like_op} {placeholder}"); params.append(f"%{sector}%")
+    if stock:
+        clauses.append(f"r.stock_names {like_op} {placeholder}"); params.append(f'%"{stock}"%')
+
+    where = "WHERE " + " AND ".join(clauses) if clauses else ""
+    sql = f"SELECT * FROM {_from} r {where} ORDER BY r.report_date DESC, r.report_id DESC LIMIT {placeholder} OFFSET {placeholder}"
     params.extend([limit, offset])
 
     from ..routers.external_api import _view_row_to_api_item
