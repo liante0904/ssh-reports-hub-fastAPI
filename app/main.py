@@ -111,7 +111,6 @@ async def lifespan(app: FastAPI):
     _ensure_tags_columns(reports_engine)
     _ensure_send_history_trigger(reports_engine)
     _migrate_telegram_sent(reports_engine)
-    _migrate_save_at(reports_engine)
     _ensure_llm_view(reports_engine)
     _ensure_reports_api_view(reports_engine)
     _ensure_article_text_column(reports_engine)
