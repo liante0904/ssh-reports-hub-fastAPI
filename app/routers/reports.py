@@ -96,8 +96,9 @@ async def get_llm_setting():
 async def get_summary_notifications(
     limit: Annotated[int, Query(ge=1, le=100)] = 30,
     db: Session = Depends(get_reports_db),
+    user: User = Depends(get_user_from_token),
 ):
-    """AI 요약 완료 알림. tbl_sec_reports_notifications + tbl_sec_reports JOIN."""
+    """AI 요약 완료 알림. tbl_sec_reports_notifications + tbl_sec_reports JOIN. (로그인 필수)"""
     try:
         conn = db.get_bind().raw_connection()
         cur = conn.cursor()
