@@ -256,7 +256,7 @@ def _ensure_llm_view(engine) -> None:
                     telegram_url        AS send_url,
                     pdf_url             AS canonical_pdf_url,
                     report_unique_key   AS raw_unique_key,
-                    COALESCE(report_date::text, reg_dt) AS published_date,
+                    report_date::text AS published_date,
                     save_at             AS scraped_at,
                     save_at             AS scraped_at_tz,
                     writer              AS analyst_name,
@@ -294,7 +294,7 @@ def _ensure_reports_api_view(engine) -> None:
             r.firm_nm AS firm_name, 
             r.firm_nm AS firm_nm,
             r.report_date AS report_date,
-            COALESCE(r.report_date::text, r.reg_dt) AS reg_dt,
+            r.report_date::text AS reg_dt,
             r.article_title AS title, 
             r.article_title AS article_title,
             r.telegram_url, 
@@ -360,7 +360,7 @@ def _ensure_reports_api_view(engine) -> None:
         FROM tbl_sec_reports r
         LEFT OUTER JOIN tbl_sec_reports_pdf_archive p ON r.report_id = p.report_id
         LEFT OUTER JOIN tbl_fnguide_report_summaries fs ON r.fnguide_summary_id = fs.summary_id
-        LEFT OUTER JOIN tbm_sec_firm_info f ON r.firm_id = f.sec_firm_order
+        LEFT OUTER JOIN tbm_sec_firm_info f ON r.firm_id = f.firm_id
     """
 
     try:

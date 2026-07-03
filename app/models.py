@@ -53,25 +53,8 @@ class ReportKeyword(Base, TimestampMixin):
 class SecReport(Base):
     __tablename__ = MAIN_TABLE_NAME
     report_id = Column(BigInteger, primary_key=True, index=True)
-    firm_id = Column('firm_id', Integer)
-    board_id = Column('board_id', Integer)
-
-    # backward-compat: 구 코드에서 sec_firm_order/article_board_order 로 접근 지원
-    @property
-    def sec_firm_order(self):
-        return self.firm_id
-
-    @sec_firm_order.setter
-    def sec_firm_order(self, value):
-        self.firm_id = value
-
-    @property
-    def article_board_order(self):
-        return self.board_id
-
-    @article_board_order.setter
-    def article_board_order(self, value):
-        self.board_id = value
+    firm_id = Column(Integer)
+    board_id = Column(Integer)
     firm_nm = Column(String)
     article_title = Column(String)
     article_url = Column(String)
@@ -79,10 +62,8 @@ class SecReport(Base):
     download_status_yn = Column(String, default="")
     download_url = Column(String)
     save_at = Column(DateTime(timezone=True))
-    report_date = Column(Date, nullable=True)  # DATE 타입 정규화 컬럼 (reg_dt → report_date 마이그레이션 완료)
-    reg_dt = Column(String, default="")  # DEPRECATED: use report_date (DATE). DROP after scraper migration.
+    report_date = Column(Date, nullable=True)
     writer = Column(String, default="")
-    key = Column(String, unique=True)  # deprecated, use report_unique_key
     report_unique_key = Column(String, unique=True)
     telegram_url = Column(String, default="")
     mkt_tp = Column(String, default="KR")
@@ -183,7 +164,7 @@ class PdfArchive(Base):
 
 class SecFirmInfo(Base):
     __tablename__ = "tbm_sec_firm_info"
-    sec_firm_order = Column(Integer, primary_key=True)
+    firm_id = Column(Integer, primary_key=True)
     sec_firm_name = Column("firm_nm", String, nullable=False)
     is_direct_link = Column("telegram_update_yn", String, default="N")
     description = Column("comment_pdf_url", String, nullable=True)  # 2026-06-11: 소문자로 마이그레이션 완료
@@ -191,8 +172,8 @@ class SecFirmInfo(Base):
 
 class SecBoardInfo(Base):
     __tablename__ = "tbm_sec_firm_board_info"
-    sec_firm_order = Column(Integer, primary_key=True)
-    article_board_order = Column(Integer, primary_key=True)
+    firm_id = Column(Integer, primary_key=True)
+    board_id = Column(Integer, primary_key=True)
     board_nm = Column(String)
     board_cd = Column(String, nullable=True)
     label_nm = Column(String, nullable=True)

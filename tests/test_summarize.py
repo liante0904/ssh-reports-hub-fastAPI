@@ -8,7 +8,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-from datetime import datetime
+from datetime import datetime, date
 import os
 import uuid
 
@@ -68,7 +68,7 @@ async def admin_client():
             report_id=200,
             firm_nm="테스트증권",
             article_title="반도체 전망 리포트",
-            reg_dt="20260607",
+            report_date=date(2026, 6, 7),
             telegram_sent=True,
             key="test-key-200",
             pdf_url="https://test.com/report200.pdf",
@@ -78,7 +78,7 @@ async def admin_client():
             report_id=201,
             firm_nm="KB증권",
             article_title="이미 요약된 리포트",
-            reg_dt="20260607",
+            report_date=date(2026, 6, 7),
             telegram_sent=True,
             key="test-key-201",
             pdf_url="https://test.com/report201.pdf",
@@ -88,7 +88,7 @@ async def admin_client():
             report_id=202,
             firm_nm="대신증권",
             article_title="PDF 링크 없는 리포트",
-            reg_dt="20260607",
+            report_date=date(2026, 6, 7),
             telegram_sent=True,
             key="test-key-202",
             pdf_url=None,

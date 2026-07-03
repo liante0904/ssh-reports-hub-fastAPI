@@ -13,16 +13,16 @@ class SecReport(Base):
     __tablename__ = 'tbl_sec_reports'
     report_id = Column(Integer, primary_key=True)
     article_title = Column(String)
-    sec_firm_order = Column(Integer)
-    article_board_order = Column(Integer)
+    firm_id = Column(Integer)
+    board_id = Column(Integer)
     telegram_sent = Column(Boolean, default=False)
 
 with engine.connect() as conn:
     # 1. Using regexp_match with not_
     stmt1 = select(func.count()).select_from(SecReport).where(
         and_(
-            SecReport.sec_firm_order == 19,
-            SecReport.article_board_order == 0,
+            SecReport.firm_id == 19,
+            SecReport.board_id == 0,
             SecReport.telegram_sent == True,
             not_(SecReport.article_title.regexp_match(r'\([0-9]{5,6}\)'))
         )
@@ -33,8 +33,8 @@ with engine.connect() as conn:
     # 2. Using op('!~')
     stmt2 = select(func.count()).select_from(SecReport).where(
         and_(
-            SecReport.sec_firm_order == 19,
-            SecReport.article_board_order == 0,
+            SecReport.firm_id == 19,
+            SecReport.board_id == 0,
             SecReport.telegram_sent == True,
             SecReport.article_title.op("!~")(r"\([0-9]{5,6}\)")
         )

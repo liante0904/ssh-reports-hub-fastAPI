@@ -67,16 +67,16 @@ async def client():
 def _seed_data(db):
     """검색 테스트용 샘플 데이터"""
     db.add_all([
-        SecFirmInfo(sec_firm_order=0, sec_firm_name="LS증권", is_direct_link="N", description=""),
-        SecFirmInfo(sec_firm_order=4, sec_firm_name="KB증권", is_direct_link="N", description=""),
+        SecFirmInfo(firm_id=0, sec_firm_name="LS증권", is_direct_link="N", description=""),
+        SecFirmInfo(firm_id=4, sec_firm_name="KB증권", is_direct_link="N", description=""),
     ])
     db.add_all([
-        SecBoardInfo(sec_firm_order=0, article_board_order=0, board_nm="종목", board_cd="stock", label_nm="종목"),
-        SecBoardInfo(sec_firm_order=4, article_board_order=0, board_nm="산업", board_cd="industry", label_nm="산업"),
+        SecBoardInfo(firm_id=0, board_id=0, board_nm="종목", board_cd="stock", label_nm="종목"),
+        SecBoardInfo(firm_id=4, board_id=0, board_nm="산업", board_cd="industry", label_nm="산업"),
     ])
     db.add_all([
         SecReport(
-            report_id=1, sec_firm_order=0, article_board_order=0,
+            report_id=1, firm_id=0, board_id=0,
             firm_nm="LS증권", article_title="삼성전자 (005930) - 1Q25 Review: 메모리 반등 시작",
             writer="홍길동", report_unique_key="key1",
             report_date=date(2025, 5, 1),
@@ -84,7 +84,7 @@ def _seed_data(db):
             telegram_sent=True, tags='["반도체", "실적 리뷰"]', stock_names='["삼성전자"]', sector="반도체",
         ),
         SecReport(
-            report_id=2, sec_firm_order=4, article_board_order=0,
+            report_id=2, firm_id=4, board_id=0,
             firm_nm="KB증권", article_title="[2H26 산업 전망] 바이오; 트리거의 시작",
             writer="김철수", report_unique_key="key2",
             report_date=date(2025, 5, 2),
@@ -92,7 +92,7 @@ def _seed_data(db):
             telegram_sent=True, tags='["바이오", "산업 분석"]', stock_names="[]", sector="바이오/헬스케어",
         ),
         SecReport(
-            report_id=3, sec_firm_order=0, article_board_order=0,
+            report_id=3, firm_id=0, board_id=0,
             firm_nm="LS증권", article_title="Daily Brief - 시장 동향",
             writer="이영희", report_unique_key="key3",
             report_date=date(2025, 5, 3),

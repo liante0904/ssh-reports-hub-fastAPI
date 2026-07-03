@@ -1,0 +1,308 @@
+{
+  "batch_id": "20260703-drop-save-time-reg-dt",
+  "mode": "parallel",
+  "policy": {
+    "result_files_only": true,
+    "result_format": "single_json_object",
+    "forbidden": [
+      "operational_db_write",
+      "service_restart",
+      "deploy",
+      "main_merge",
+      "git_push_without_instruction",
+      "secret_printing",
+      "delete_any_source_file",
+      "drop_database_column_without_user_approval",
+      "modify_migration_sql_without_user_approval"
+    ]
+  },
+  "context": {
+    "current_branch": "main",
+    "target_columns": {
+      "save_time": {
+        "status": "deprecated",
+        "replacement": "save_at (TIMESTAMPTZ)",
+        "migration_complete": true,
+        "rows_migrated": 283933,
+        "drop_ready": false,
+        "reason": "code still references save_time as fallback in 14 places"
+      },
+      "reg_dt": {
+        "status": "deprecated",
+        "replacement": "report_date (DATE)",
+        "migration_complete": true,
+        "rows_migrated": 283933,
+        "drop_ready": false,
+        "reason": "code still uses reg_dt as primary sort key in all endpoints (31 refs)"
+      },
+      "main_ch_send_yn": {
+        "status": "code_clean",
+        "replacement": "telegram_sent (BOOLEAN)",
+        "drop_ready": true
+      },
+      "key": {
+        "status": "code_clean",
+        "replacement": "report_unique_key (UNIQUE)",
+        "drop_ready": true,
+        "note": "2026-07-01 배포 완료"
+      },
+      "article_url": {
+        "status": "code_clean",
+        "replacement": null,
+        "drop_ready": true,
+        "note": "2026-06-15 제거 완료"
+      }
+    },
+    "reference_docs": [
+      "/home/ubuntu/workspace/external.reports-hub/docs/DB_MIGRATION_STATUS.md",
+      "/home/ubuntu/workspace/external.reports-hub/docs/DB_SCHEMA_REPORTS_HUB.md",
+      "/home/ubuntu/workspace/LLM_HARNESS_STANDARD.md",
+      "/home/ubuntu/workspace/external.reports-hub/CLAUDE.md"
+    ],
+    "key_files": {
+      "models": "app/models.py",
+      "views": "app/main.py (lines 260-380, _ensure_llm_view + _ensure_reports_api_view)",
+      "external_api": "app/routers/external_api.py",
+      "favorites": "app/routers/favorites.py",
+      "admin": "app/routers/admin.py",
+      "reports": "app/routers/reports.py",
+      "fnguide_matcher": "app/services/fnguide_matcher.py",
+      "schemas": "app/schemas.py"
+    },
+    "do_not_touch_without_reason": [
+      "Physical DB ALTER/DROP statements — user must approve before execution",
+      "Scraper modules under apps/scrapers/ — separate task batch",
+      "restore.sql / restore_complete.sql — reference-only, separate PR",
+      "View backward-compat aliases (reg_dt, save_time in v_reports_api) — keep for now, mark with TODO"
+    ]
+  },
+  "tasks": [
+    {
+      "id": "DS-SAVETIME-001",
+      "agent": "deepseek",
+      "status": "ready",
+      "priority": "P0",
+      "title": "Backend app code: 모든 save_time 참조 제거 → save_at 일원화",
+      "objective": "app/ 디렉토리 내 모든 .py 파일에서 save_time 컬럼 참조를 제거하고 save_at 또는 scraped_at(view alias)으로 대체한다. models.py에서 save_time 컬럼 정의를 삭제하고, main.py의 마이그레이션 함수도 제거한다.",
+      "max_scope": "apps/backend/ssh-reports-hub-fastAPI/app/ 디렉토리 내 .py 파일만. scraper 모듈, SQL 파일, tests/ 는 제외.",
+      "allowed_files": [
+        "app/models.py",
+        "app/main.py",
+        "app/routers/external_api.py",
+        "app/routers/favorites.py",
+        "app/routers/admin.py",
+        "app/routers/reports.py",
+        "app/services/fnguide_matcher.py",
+        "app/schemas.py",
+        ".agent_tasks/deepseek_result.md"
+      ],
+      "forbidden_files": [
+        "tests/**",
+        "apps/scrapers/**",
+        "*.sql",
+        "restore.sql",
+        "restore_complete.sql",
+        ".github/**"
+      ],
+      "context": [
+        "save_time는 VARCHAR ISO 문자열 컬럼. 이미 save_at(TIMESTAMPTZ)로 마이그레이션 완료 (283,933건).",
+        "v_reports_api 뷰(line 337)에서 r.save_time AS save_time → r.save_at::text AS save_time 으로 변경 필요.",
+        "v_llm_reports 뷰(line 283)에서 save_time AS scraped_at → save_at AS scraped_at 으로 변경 필요.",
+        "external_api.py:155 COLUMN_MAP에서 'save_time' 제거. line 174의 scraped_at fallback에서 m.get('save_time') 제거.",
+        "favorites.py:29 SELECT에서 r.save_time 제거. lines 35-36의 복잡한 save_time CASE 구문 제거 → scraped_at(view의 save_at) 직접 사용. line 70 fallback 제거.",
+        "admin.py:361 latest.save_time fallback 제거 → save_at만 사용. 이 메서드는 ORM(SQLAlchemy)을 사용하므로 save_time 컬럼 정의가 models.py에 없으면 자연스럽게 접근 불가.",
+        "main.py:235-257 _migrate_save_at() 함수 전체 제거 (마이그레이션 완료됨).",
+        "main.py:260-310 _ensure_llm_view()의 save_time 참조 수정.",
+        "main.py:310-380 _ensure_reports_api_view()의 save_time 참조 수정.",
+        "models.py:73 save_time = Column(String) 라인 삭제.",
+        "schemas.py에 save_time 필드가 있다면 제거 (없으면 skip)."
+      ],
+      "instructions": [
+        "1. 먼저 git status --short --branch 로 현재 상태 확인.",
+        "2. app/ 디렉토리에서 rg 'save_time' 으로 모든 참조 위치 파악.",
+        "3. 각 파일별 변경:",
+        "   - models.py:73 → save_time 컬럼 정의 삭제",
+        "   - main.py:235-257 → _migrate_save_at() 함수 전체 삭제",
+        "   - main.py:283 → save_time AS scraped_at → COALESCE(save_at::text, save_time) AS scraped_at (과도기)",
+        "   - main.py:337 → r.save_time → r.save_at::text (타입 일관성 유지)",
+        "   - external_api.py:155 → COLUMN_MAP에서 'save_time' 항목 제거",
+        "   - external_api.py:174 → m.get('save_time') fallback 제거, scraped_at(view) 직접 사용",
+        "   - favorites.py:29 → SELECT에서 r.save_time 제거",
+        "   - favorites.py:35-36 → save_time CASE 구문 제거, scraped_at 사용",
+        "   - favorites.py:70 → r['save_time'] fallback 제거",
+        "   - admin.py:361 → latest.save_time fallback 제거",
+        "4. 변경 완료 후 rg 'save_time' app/ --include='*.py' 로 잔여 참조 확인 (main.py의 과도기 COALESCE 구문만 남아야 함).",
+        "5. uv run pytest tests/ -v -k 'not test_save_time_migration' 로 테스트 실행 (save_time 마이그레이션 테스트는 실패 예정이므로 제외)."
+      ],
+      "validation": [
+        "rg 'save_time' app/ --include='*.py' | grep -v 'COALESCE' | grep -v 'test_' — 빈 출력이어야 함",
+        "rg '\.save_time\b' app/ --include='*.py' — 빈 출력이어야 함",
+        "uv run pytest tests/test_api_mocked.py -v",
+        "uv run pytest tests/test_admin_metrics.py -v -k 'not last_save_time'",
+        "uv run pytest tests/test_main.py -v",
+        "git diff --check"
+      ],
+      "acceptance_criteria": [
+        "app/ 디렉토리에서 save_time 컬럼 직접 참조가 모두 제거됨",
+        "models.py에서 save_time = Column(String) 라인이 삭제됨",
+        "_migrate_save_at() 함수가 main.py에서 제거됨",
+        "뷰 정의에서 save_time 대신 save_at을 사용함 (과도기 COALESCE 허용)",
+        "외부 API 응답에서 scraped_at 필드가 save_at에서 파생됨 (save_time fallback 없음)",
+        "기존 테스트가 통과함 (save_time migration 테스트는 예외)"
+      ],
+      "constraints": [
+        "테스트 파일(tests/)은 수정하지 않는다 — 테스트 실패는 별도 task로 분리",
+        "scraper 모듈은 수정하지 않는다",
+        "실제 DB DROP은 수행하지 않는다",
+        "git commit 하지 않는다",
+        "운영 DB에 쓰지 않는다"
+      ],
+      "deliverable": ".agent_tasks/deepseek_result.md 에 단일 JSON object: agent, completed_at, task_id, status, changed_files (list), removed_references (count), remaining_view_fallbacks (list), validation_results, notes"
+    },
+    {
+      "id": "DS-REGDATE-001",
+      "agent": "deepseek",
+      "status": "ready",
+      "priority": "P1",
+      "title": "Backend app code: reg_dt → report_date 전환 (ORDER BY / WHERE)",
+      "objective": "모든 ORDER BY, WHERE, GROUP BY 절에서 reg_dt 대신 report_date(DATE 타입)를 사용하도록 변경. 뷰에서는 reg_dt를 report_date의 alias로 유지(하위호환). models.py의 reg_dt 컬럼은 deprecated 상태 유지(즉시 삭제 X — scraper 연동 필요).",
+      "max_scope": "apps/backend/ssh-reports-hub-fastAPI/app/ 디렉토리. 뷰 정의, 라우터 쿼리, 서비스 로직.",
+      "allowed_files": [
+        "app/main.py",
+        "app/routers/external_api.py",
+        "app/routers/admin.py",
+        "app/routers/reports.py",
+        "app/routers/favorites.py",
+        "app/services/fnguide_matcher.py",
+        "app/models.py",
+        ".agent_tasks/deepseek_result.md"
+      ],
+      "forbidden_files": [
+        "tests/**",
+        "apps/scrapers/**",
+        "*.sql",
+        "restore.sql",
+        "restore_complete.sql"
+      ],
+      "context": [
+        "reg_dt는 YYYYMMDD 8자리 VARCHAR 컬럼. report_date(DATE)가 이미 존재하며 마이그레이션 완료.",
+        "v_reports_api 뷰(line 319-320): r.reg_dt AS report_date, r.reg_dt AS reg_dt → COALESCE(r.report_date::text, r.reg_dt) AS reg_dt 로 변경. report_date는 r.report_date AS report_date 유지.",
+        "v_llm_reports 뷰(line 282): reg_dt AS published_date → COALESCE(report_date::text, reg_dt) AS published_date.",
+        "external_api.py의 ORDER BY r.reg_dt DESC → ORDER BY r.report_date DESC 로 변경 (lines 384, 386, 460, 462, 493, 494).",
+        "reports.py:51 ORDER BY r.reg_dt DESC → ORDER BY r.report_date DESC.",
+        "admin.py:317,325 → .filter(SecReport.reg_dt == today_str) → .filter(SecReport.report_date == today_date).",
+        "admin.py:337-340 → .query(SecReport.reg_dt, ...) → .query(SecReport.report_date, ...).",
+        "admin.py:427 → func.max(SecReport.reg_dt) → func.max(SecReport.report_date).",
+        "fnguide_matcher.py:201 → reg_dt fallback 제거, report_date 우선 사용.",
+        "fnguide_matcher.py:343 → 'sec_date': report.reg_dt → 'sec_date': str(report.report_date) if report.report_date else report.reg_dt.",
+        "models.py:75 → reg_dt = Column(String, default='') 유지하되 주석 강화: # DEPRECATED: use report_date (DATE). Will be dropped after scraper migration.",
+        "schemas.py:32,90 → reg_dt 필드 유지 (API 응답 하위호환)."
+      ],
+      "instructions": [
+        "1. rg 'reg_dt' app/ --include='*.py' 로 모든 참조 파악.",
+        "2. 뷰 정의 수정 (main.py):",
+        "   - _ensure_llm_view: reg_dt AS published_date → COALESCE(report_date::text, reg_dt) AS published_date",
+        "   - _ensure_reports_api_view: r.reg_dt AS reg_dt → COALESCE(r.report_date::text, r.reg_dt) AS reg_dt",
+        "3. ORDER BY 변경 (external_api.py, reports.py): r.reg_dt DESC → r.report_date DESC",
+        "4. WHERE/GROUP BY 변경 (admin.py): reg_dt → report_date (DATE 타입이므로 비교값도 DATE로)",
+        "5. fnguide_matcher.py: report_date 우선, reg_dt fallback 유지",
+        "6. 변경 완료 후 rg 'ORDER BY.*reg_dt' app/ 로 잔여 확인.",
+        "7. uv run pytest tests/test_api_mocked.py -v 로 기본 테스트 통과 확인."
+      ],
+      "validation": [
+        "rg 'ORDER BY r\.reg_dt' app/ --include='*.py' — 빈 출력이어야 함",
+        "rg '\.filter\(SecReport\.reg_dt' app/ --include='*.py' — 빈 출력이어야 함",
+        "rg '\.query\(SecReport\.reg_dt' app/ --include='*.py' — 빈 출력이어야 함",
+        "rg 'func\.max\(SecReport\.reg_dt' app/ --include='*.py' — 빈 출력이어야 함",
+        "uv run pytest tests/test_api_mocked.py -v",
+        "git diff --check"
+      ],
+      "acceptance_criteria": [
+        "모든 ORDER BY 절이 report_date를 사용함",
+        "모든 WHERE/GROUP BY 절이 report_date를 사용함",
+        "뷰에서 reg_dt는 COALESCE(report_date, reg_dt)로 하위호환 유지",
+        "fnguide_matcher가 report_date를 우선 사용하고 reg_dt를 fallback으로 유지",
+        "기존 테스트 통과"
+      ],
+      "constraints": [
+        "models.py에서 reg_dt 컬럼 정의를 삭제하지 않는다 (scraper가 아직 사용 중)",
+        "schemas.py의 reg_dt 필드를 삭제하지 않는다 (API 하위호환)",
+        "실제 DB ALTER/DROP은 수행하지 않는다",
+        "git commit 하지 않는다"
+      ],
+      "deliverable": ".agent_tasks/deepseek_result.md 에 단일 JSON object: agent, completed_at, task_id, status, changed_files (list), order_by_changes (list), where_changes (list), view_changes (list), remaining_reg_dt_refs (list — 어떤 파일의 어떤 라인이 아직 reg_dt를 참조하는지와 그 이유), validation_results, notes"
+    },
+    {
+      "id": "AGY-AUDIT-001",
+      "agent": "gemini",
+      "status": "ready",
+      "priority": "P1",
+      "title": "[READ-ONLY] save_time + reg_dt 참조 현황 감사 및 클린업 검증 체크리스트",
+      "objective": "DeepSeek의 코드 변경 전/후로 save_time과 reg_dt의 모든 참조 위치를 감사하고, 누락된 참조가 없는지 검증할 체크리스트를 생성한다. 절대 소스 코드를 수정하지 않는다.",
+      "max_scope": "Read-only audit. result file only. NO code changes allowed.",
+      "allowed_files": [
+        ".agent_tasks/gemini_agy_result.md"
+      ],
+      "forbidden_files": [
+        "*.py",
+        "*.sql",
+        "*.yml",
+        "*.yaml",
+        "*.json",
+        "*.md (except gemini_agy_result.md)",
+        "tests/**",
+        "app/**",
+        "apps/**",
+        "docs/**"
+      ],
+      "context": [
+        "Read /home/ubuntu/workspace/external.reports-hub/docs/DB_MIGRATION_STATUS.md.",
+        "Read /home/ubuntu/workspace/LLM_HARNESS_STANDARD.md.",
+        "AGY는 READ-ONLY 감사자다. 소스 코드를 절대 수정/삭제하지 않는다.",
+        "save_time, reg_dt 두 컬럼의 코드 내 모든 참조를 grep으로 찾아내고 분류하는 것이 목표.",
+        "DeepSeek 결과(.agent_tasks/deepseek_result.md)가 생성된 후 이 감사를 실행하여 누락을 찾아낸다."
+      ],
+      "instructions": [
+        "절대 소스 코드를 수정하지 않는다. Read-only 도구만 사용한다.",
+        "절대 파일을 삭제하지 않는다.",
+        "절대 git 명령어(write 계열)를 실행하지 않는다.",
+        "1차 감사 (DeepSeek 실행 전):",
+        "  - rg 'save_time' apps/backend/ssh-reports-hub-fastAPI/app/ --include='*.py' 로 모든 save_time 참조를 파일:라인:내용 형태로 수집",
+        "  - rg 'reg_dt' apps/backend/ssh-reports-hub-fastAPI/app/ --include='*.py' 로 모든 reg_dt 참조를 동일하게 수집",
+        "  - 각 참조를 카테고리로 분류: 'view_definition', 'order_by', 'where_clause', 'column_mapping', 'fallback_logic', 'model_definition', 'migration_code', 'schema_field', 'comment_only'",
+        "2. 검증 체크리스트 생성:",
+        "  - 각 카테고리별로 DeepSeek가 변경해야 할 정확한 파일:라인 목록",
+        "  - 변경 유형: REMOVE / REPLACE_WITH_save_at / REPLACE_WITH_report_date / KEEP_WITH_FALLBACK",
+        "3. 2차 감사 (DeepSeek 결과 파일이 존재할 경우):",
+        "  - deepseek_result.md의 changed_files 목록과 실제 git diff를 비교",
+        "  - 누락된 참조가 있는지 확인하고 목록화",
+        "  - DeepSeek가 실수로 삭제했으면 안 되는 것을 삭제했는지 확인",
+        "4. 최종 결과에 포함할 항목:",
+        "  - pre_audit: {save_time_refs: [{file, line, content, category}], reg_dt_refs: [{file, line, content, category}]}",
+        "  - checklist: [{file, line, current_content, required_change_type, note}]",
+        "  - post_audit: {missing_refs: [], wrongly_removed: [], status: 'passed'|'issues_found'} (DeepSeek 실행 후)",
+        "  - approval_required: 사용자 승인이 필요한 항목 (DB DROP 등)"
+      ],
+      "validation": [
+        "결과 파일이 유효한 JSON object인지 확인",
+        "코드 파일이 하나도 수정되지 않았는지 git diff --stat 으로 확인",
+        "모든 grep 결과에 파일:라인:내용 이 포함되어 있는지 확인"
+      ],
+      "acceptance_criteria": [
+        "save_time + reg_dt 모든 참조가 파일:라인 단위로 분류됨",
+        "DeepSeek가 변경해야 할 정확한 체크리스트가 생성됨",
+        "2차 감사에서 누락/오수정이 발견되면 명확히 보고됨",
+        "단 한 줄의 소스 코드도 수정되지 않음",
+        "단 하나의 파일도 삭제되지 않음"
+      ],
+      "constraints": [
+        "READ-ONLY. No source file modifications.",
+        "No file deletions.",
+        "No git write operations.",
+        "No DB operations.",
+        "Result file only: .agent_tasks/gemini_agy_result.md"
+      ],
+      "deliverable": ".agent_tasks/gemini_agy_result.md 에 단일 JSON object: agent, completed_at, task_id, status, pre_audit {save_time_refs: [{file, line, content, category}], reg_dt_refs: [{file, line, content, category}]}, checklist: [{file, line, required_change, note}], post_audit: {missing_refs: [], wrongly_removed: [], status}, approval_required: []"
+    }
+  ]
+}

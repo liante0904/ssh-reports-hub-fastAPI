@@ -124,17 +124,6 @@ class SecReportResponse(BaseModel):
         description="게시판 식별 ID (board_id). canonical 이름.",
     )
 
-    # ── deprecated (backward-compat only) ──
-    @computed_field(description="[Deprecated] use firm_id instead.")
-    @property
-    def sec_firm_order(self) -> Optional[int]:
-        return self.firm_id
-
-    @computed_field(description="[Deprecated] use board_id instead.")
-    @property
-    def article_board_order(self) -> Optional[int]:
-        return self.board_id
-
     pdf_archive: Optional[PdfArchiveResponse] = None
     fnguide_summary: Optional[FnGuideReportSummaryResponse] = None
 
@@ -168,17 +157,6 @@ class BoardResponse(BaseModel):
     board_nm: str
     label_nm: Optional[str] = None
     report_count: int = 0
-
-    # ── deprecated (backward-compat) ──
-    @computed_field(description="[Deprecated] use firm_id instead.")
-    @property
-    def sec_firm_order(self) -> int:
-        return self.firm_id
-
-    @computed_field(description="[Deprecated] use board_id instead.")
-    @property
-    def article_board_order(self) -> int:
-        return self.board_id
 
 class TelegramUser(BaseModel):
     id: int
@@ -222,11 +200,6 @@ class ReportNotificationResponse(BaseModel):
     telegram_url: Optional[str] = None
     article_url: Optional[str] = None
     created_at: datetime
-
-    @computed_field(description="[Deprecated] use firm_id instead.")
-    @property
-    def sec_firm_order(self) -> Optional[int]:
-        return self.firm_id
 
 
 class ReportSentHistoryResponse(BaseModel):

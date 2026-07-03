@@ -48,20 +48,20 @@ async def get_companies(request: Request, db: Session = Depends(get_reports_db))
     """
     sql = """
         SELECT
-            f.sec_firm_order AS firm_id,
+            f.firm_id AS firm_id,
             f.firm_nm,
             f.telegram_update_yn AS is_direct_link,
             f.comment_pdf_url AS description,
             COUNT(r.report_id) AS report_count
         FROM tbm_sec_firm_info f
-        JOIN tbl_sec_reports r ON f.sec_firm_order = r.firm_id
+        JOIN tbl_sec_reports r ON f.firm_id = r.firm_id
         WHERE r.telegram_sent = TRUE
         GROUP BY
-            f.sec_firm_order,
+            f.firm_id,
             f.firm_nm,
             f.telegram_update_yn,
             f.comment_pdf_url
-        ORDER BY f.sec_firm_order ASC
+        ORDER BY f.firm_id ASC
     """
     results = _execute_raw_psycopg2_query(db, sql)
 
@@ -88,23 +88,23 @@ async def get_boards(
     """
     sql = """
         SELECT
-            b.sec_firm_order AS firm_id,
-            b.article_board_order AS board_id,
+            b.firm_id AS firm_id,
+            b.board_id AS board_id,
             b.board_nm,
             b.label_nm,
             COUNT(r.report_id) AS report_count
         FROM tbm_sec_firm_board_info b
         LEFT OUTER JOIN tbl_sec_reports r ON
-            b.sec_firm_order = r.firm_id AND
-            b.article_board_order = r.board_id AND
+            b.firm_id = r.firm_id AND
+            b.board_id = r.board_id AND
             r.telegram_sent = TRUE
-        WHERE b.sec_firm_order = %s
+        WHERE b.firm_id = %s
         GROUP BY
-            b.sec_firm_order,
-            b.article_board_order,
+            b.firm_id,
+            b.board_id,
             b.board_nm,
             b.label_nm
-        ORDER BY b.article_board_order ASC
+        ORDER BY b.board_id ASC
     """
     results = _execute_raw_psycopg2_query(db, sql, [company])
 

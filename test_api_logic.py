@@ -13,8 +13,8 @@ class SecReport(Base):
     __tablename__ = 'tbl_sec_reports'
     report_id = Column(Integer, primary_key=True)
     article_title = Column(String)
-    sec_firm_order = Column(Integer)
-    article_board_order = Column(Integer)
+    firm_id = Column(Integer)
+    board_id = Column(Integer)
     telegram_sent = Column(Boolean, default=False)
 
 INDUSTRY_REPORT_BOARD_FILTERS = (
@@ -41,8 +41,8 @@ with engine.connect() as conn:
     board_filters = []
     for firm_order, board_orders in INDUSTRY_REPORT_BOARD_FILTERS:
         f = and_(
-            SecReport.sec_firm_order == firm_order,
-            SecReport.article_board_order.in_(board_orders),
+            SecReport.firm_id == firm_order,
+            SecReport.board_id.in_(board_orders),
         )
         if firm_order == 19:
             f = and_(f, SecReport.article_title.op("!~")(r"\([0-9]{5,6}\)"))
@@ -52,7 +52,7 @@ with engine.connect() as conn:
         and_(
             or_(*board_filters),
             SecReport.telegram_sent == True,
-            SecReport.sec_firm_order == 19
+            SecReport.firm_id == 19
         )
     )
     count = conn.execute(stmt).scalar()

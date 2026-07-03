@@ -35,7 +35,7 @@ async def get_favorites(
     sql = f"""
         SELECT r.report_id, r.firm_id, r.board_id, r.firm_nm, r.article_title,
                r.article_url, r.telegram_sent, r.download_url, r.pdf_url, r.telegram_url,
-               r.writer, r.reg_dt, r.save_at, r.report_unique_key, r.mkt_tp,
+               r.writer, r.report_date AS reg_dt, r.save_at, r.report_unique_key, r.mkt_tp,
                r.gemini_summary, r.summary_time, r.summary_model,
                p.page_count AS pdf_page_count, p.file_name AS pdf_file_name,
                p.has_text AS pdf_has_text, p.is_encrypted AS pdf_is_encrypted,

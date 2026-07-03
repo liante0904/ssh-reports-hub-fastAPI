@@ -40,7 +40,7 @@ async def client():
         report_date=date(2026, 4, 20),
         report_unique_key="key-1",
         save_at=None,
-        sec_firm_order=1,
+        firm_id=1,
         telegram_sent=True,
     )
     db.add(r1)
@@ -53,7 +53,7 @@ async def client():
         report_date=date(2026, 4, 21),
         report_unique_key="key-2",
         save_at=datetime(2026, 4, 21, 11, 0, 0, tzinfo=timezone.utc),
-        sec_firm_order=2,
+        firm_id=2,
         telegram_sent=True,
     )
     db.add(r2)
