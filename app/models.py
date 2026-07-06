@@ -146,7 +146,7 @@ class PdfArchive(Base):
     retry_count = Column(Integer, nullable=True, default=0)
     firm_nm = Column(Text, nullable=True)
     title = Column(Text, nullable=True)
-    reg_dt = Column(Text, nullable=True)
+    report_date = Column(Text, nullable=True)
     pdf_sync_status = Column(Integer, nullable=True, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

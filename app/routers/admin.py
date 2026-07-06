@@ -474,7 +474,7 @@ async def get_firm_health(
             "firm_id": o,
             "firm_nm": nm,
             "total": total,
-            "last_reg_dt": last_date.isoformat() if last_date else "",
+            "last_report_date": last_date.isoformat() if last_date else "",
             "last_save": str(save_dt)[:10] if save_dt else None,
             "days_ago": days_ago,
             "status": status,

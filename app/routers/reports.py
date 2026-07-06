@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session, joinedload
 from ..dependencies import get_user_from_token
 
 from ..database import get_reports_db
-from ..models import SecReport
+from ..models import SecReport, User
 from ..schemas import SecReportResponse, ReportNotificationResponse, ReportSentHistoryResponse
 
 router = APIRouter(prefix="/external/api", tags=["reports"])

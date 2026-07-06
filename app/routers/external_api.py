@@ -152,7 +152,8 @@ def _base_select_sql(db: Session) -> str:
 
 _VIEW_TO_API_KEY_MAP = {
     "firm_id": "firm_id", "board_id": "board_id",
-    "firm_nm": "firm_nm", "mkt_tp": "mkt_tp", "reg_dt": "reg_dt",
+    "firm_nm": "firm_nm", "mkt_tp": "mkt_tp",
+    "report_date": "report_date",
     "article_title": "article_title", "telegram_url": "telegram_url",
     "pdf_url": "pdf_url", "writer": "writer", "gemini_summary": "gemini_summary",
     "tags": "tags", "stock_names": "stock_names", "sector": "sector",
@@ -171,7 +172,6 @@ def _view_row_to_api_item(row) -> dict:
     item = {api_key: m.get(view_col) for view_col, api_key in _VIEW_TO_API_KEY_MAP.items()}
     item["is_direct"] = (str(m.get("is_direct", "")) == "Y") or None
     item["send_user"] = None
-    item["download_status_yn"] = None
     # scraped_at: view가 이미 계산해서 제공
     item["scraped_at"] = m.get("scraped_at")
     if item["scraped_at"] is None:
@@ -180,7 +180,6 @@ def _view_row_to_api_item(row) -> dict:
         item["scraped_at"] = item["scraped_at"].isoformat()
     elif isinstance(item["scraped_at"], str):
         item["scraped_at"] = item["scraped_at"].replace(" ", "T", 1)
-    item["key"] = m.get("report_unique_key")
     for json_field in ("tags", "stock_names", "stock_tickers"):
         item[json_field] = _parse_json_field(item.get(json_field))
     # nested objects
@@ -497,7 +496,7 @@ async def get_recent_reports(
     db: Session = Depends(get_reports_db),
 ):
     """
-    최근 발송된 리포트를 reg_dt(리포트 발행일) 기준 내림차순으로 조회합니다.
+    최근 발송된 리포트를 report_date(리포트 발행일) 기준 내림차순, 동일 발행일 내 save_at(스크래핑 시각) 내림차순으로 조회합니다.
     /recent 프론트엔드 페이지 전용 — search API 부하 분산.
     """
     is_postgres = (db.get_bind().dialect.name == "postgresql")
