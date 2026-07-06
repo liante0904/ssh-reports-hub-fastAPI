@@ -496,12 +496,12 @@ async def get_recent_reports(
     db: Session = Depends(get_reports_db),
 ):
     """
-    최근 발송된 리포트를 report_date(리포트 발행일) 기준 내림차순, 동일 발행일 내 save_at(스크래핑 시각) 내림차순으로 조회합니다.
+    최근 발송된 리포트를 save_at(스크래핑/발송 시각) 기준 내림차순, 동일 시각 내 report_date(발행일) 내림차순으로 조회합니다.
     /recent 프론트엔드 페이지 전용 — search API 부하 분산.
     """
     is_postgres = (db.get_bind().dialect.name == "postgresql")
-    order_by = "ORDER BY r.report_date DESC, r.save_at DESC NULLS LAST, r.report_id DESC" if is_postgres else \
-               "ORDER BY r.report_date DESC, CASE WHEN r.save_at IS NULL THEN 1 ELSE 0 END, r.save_at DESC, r.report_id DESC"
+    order_by = "ORDER BY r.save_at DESC NULLS LAST, r.report_date DESC, r.report_id DESC" if is_postgres else \
+               "ORDER BY CASE WHEN r.save_at IS NULL THEN 1 ELSE 0 END, r.save_at DESC, r.report_date DESC, r.report_id DESC"
 
     clauses = ["r.telegram_sent = TRUE"]
     params = []
