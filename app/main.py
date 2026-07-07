@@ -106,8 +106,7 @@ async def _cache_warming_loop(app: FastAPI) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=reports_engine)
-    Base.metadata.create_all(bind=keywords_engine)
+    Base.metadata.create_all(bind=reports_engine)  # 동일 DB이므로 한 번만 호출 (keywords_engine은 reports_engine의 alias)
     _ensure_tags_columns(reports_engine)
     _ensure_send_history_trigger(reports_engine)
     _migrate_telegram_sent(reports_engine)

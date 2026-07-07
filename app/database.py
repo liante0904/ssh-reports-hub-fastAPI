@@ -76,11 +76,11 @@ reports_engine = create_engine(REPORTS_DATABASE_URL, connect_args=reports_connec
 ReportsSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=reports_engine)
 
 
-# --- 2. 키워드/유저용 DB 설정 (무조건 PostgreSQL 고정) ---
-KEYWORDS_DATABASE_URL = f"postgresql://{PG_USER}:{PG_PASSWORD}@{PG_HOST}:{PG_PORT}/{PG_DB}"
-
-keywords_engine = create_engine(KEYWORDS_DATABASE_URL, **POSTGRES_ENGINE_KWARGS)
-KeywordsSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=keywords_engine)
+# --- 2. 키워드/유저용 DB 설정 (reports_engine과 동일 DB → 풀 공유) ---
+# 동일 DB에 대해 별도 engine/pool을 생성하면 connection slot을 불필요하게 소모하므로
+# keywords_engine / KeywordsSessionLocal 은 reports_engine / ReportsSessionLocal 을 재사용합니다.
+keywords_engine = reports_engine
+KeywordsSessionLocal = ReportsSessionLocal
 
 
 class Base(DeclarativeBase):
