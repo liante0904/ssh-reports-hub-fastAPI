@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from .database import get_keywords_db
+from ..database import get_keywords_db
 
 logger = logging.getLogger("app.fcf_screening")
 
