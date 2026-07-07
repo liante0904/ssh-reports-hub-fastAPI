@@ -525,3 +525,38 @@ async def test_favorites_response_structure(client):
     assert "article_title" in item
     assert "favorite_created_at" in item
     assert "pdf_archive" in item
+
+
+# ──────────────────────────────────────────────────────────────────
+# Pool Consolidation Regression Tests
+# ──────────────────────────────────────────────────────────────────
+
+def test_keywords_engine_shares_reports_engine():
+    """Verify keywords_engine is the same Python object as reports_engine.
+
+    Regression test for: database.py pool consolidation fix.
+    If this fails, someone re-created a separate engine/pool for keywords,
+    which would cause unnecessary connection slot consumption.
+    """
+    from app.database import keywords_engine, reports_engine
+    assert keywords_engine is reports_engine, (
+        "keywords_engine must be the SAME object as reports_engine "
+        "(single connection pool). If you intentionally created a "
+        "separate engine, ensure it's warranted and update this test."
+    )
+
+
+def test_keywords_session_shares_reports_session():
+    """Verify KeywordsSessionLocal is the same factory as ReportsSessionLocal."""
+    from app.database import KeywordsSessionLocal, ReportsSessionLocal
+    assert KeywordsSessionLocal is ReportsSessionLocal, (
+        "KeywordsSessionLocal must be the SAME factory as ReportsSessionLocal"
+    )
+
+
+def test_both_engines_connect_to_same_database():
+    """Verify both engines point to the same PostgreSQL database URL."""
+    from app.database import keywords_engine, reports_engine
+    assert str(keywords_engine.url) == str(reports_engine.url), (
+        "Both engines must target the same database"
+    )
