@@ -548,3 +548,8 @@ app.include_router(fnguide_reports.router)
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
+
+# FCF Screening routes
+from .routers import fcf_screening
+app.include_router(fcf_screening.router)
+app.include_router(fcf_screening.api_router)
