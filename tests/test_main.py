@@ -10,6 +10,7 @@ from app.dependencies import get_settings_dep
 from app.settings import Settings
 
 from app.models import SecReport, SecFirmInfo, SecBoardInfo
+from app.routers.external_api import _build_outlook_clauses
 
 # 테스트용 SQLite 메모리 DB 설정
 engine = create_engine(
@@ -278,6 +279,40 @@ async def test_external_api_search_title_filter(client):
     data = response.json()
     for item in data["items"]:
         assert "Global" in item["article_title"]
+
+
+@pytest.mark.anyio
+async def test_external_api_outlook_basic(client):
+    """전망 전용 API 기본 응답 envelope 검증"""
+    response = await client.get("/external/api/outlook?limit=5")
+    assert response.status_code == 200
+    data = response.json()
+    assert "items" in data
+    assert "hasMore" in data
+    assert "count" in data
+    assert "limit" in data
+    assert "offset" in data
+    assert data["count"] == 1
+    assert data["items"][0]["report_id"] == 1
+
+
+@pytest.mark.anyio
+async def test_external_api_outlook_year_filter(client):
+    """전망 전용 API 연도 필터"""
+    response = await client.get("/external/api/outlook?outlook_year=2026&limit=5")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["count"] == 0
+
+
+def test_outlook_clauses_bind_like_patterns_for_postgres():
+    """PostgreSQL raw SQL에서 LIKE % 패턴은 psycopg2 파라미터로 바인딩한다."""
+    clauses, params = _build_outlook_clauses(2026, is_postgres=True)
+    sql_fragment = " AND ".join(clauses)
+
+    assert "r.article_title ILIKE %s" in sql_fragment
+    assert "'%전망%'" not in sql_fragment
+    assert params == ["%전망%", "%2026년%"]
 
 
 # ──────────────────────────────────────────────

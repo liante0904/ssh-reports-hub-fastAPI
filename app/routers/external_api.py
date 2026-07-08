@@ -266,6 +266,37 @@ def _build_where_clauses(
     return clauses, params
 
 
+def _build_outlook_clauses(
+    outlook_year: Optional[int],
+    is_postgres: bool = True,
+) -> tuple[list[str], list]:
+    like_op = "ILIKE" if is_postgres else "LIKE"
+    clauses = [f"r.article_title {like_op} %s"]
+    params = ["%전망%"]
+
+    if is_postgres:
+        clauses.extend(
+            [
+                (
+                    "r.article_title ~* "
+                    "'하반기|상반기|연간|[0-9]{4}년|[0-9]H[0-9]{2}|전망포럼|"
+                    "(경제|금융시장|주식시장|시장)[[:space:]]*전망|"
+                    "(업종|산업)[[:space:]]*전망'"
+                ),
+                "r.article_title !~* '\\([0-9]{5,6}'",
+                "r.article_title !~* '\\[[0-9]{5,6}/'",
+                "r.article_title !~* '\\[[^\\]]+/(매수|매도|중립|시장수익률|Buy|Hold|Sell|Neutral|Outperform|Underperform|Not[[:space:]]*Rated|Trading[[:space:]]*Buy)'",
+                "r.article_title !~* '목표주가'",
+            ]
+        )
+
+    if outlook_year:
+        clauses.append(f"r.article_title {like_op} %s")
+        params.append(f"%{outlook_year}년%")
+
+    return clauses, params
+
+
 def _paginate_query(query_or_sql, limit: int, offset: int, db: Session = None, params: list = None) -> tuple[list, bool]:
     if not isinstance(query_or_sql, str):
         rows = query_or_sql.offset(offset).limit(limit + 1).all()
@@ -406,6 +437,47 @@ async def get_global_reports(
     return _collection_response(request, rows, limit, offset, has_more)
 
 
+@router.get("/outlook", summary="전망 리포트 조회 (Public API)")
+@router.get("/outlook/", include_in_schema=False)
+@cache_response(ttl=300, prefix="api")
+async def get_outlook_reports(
+    request: Request,
+    writer: Annotated[Optional[str], Query(min_length=1, max_length=100)] = None,
+    title: Annotated[Optional[str], Query(min_length=1, max_length=100)] = None,
+    mkt_tp: Annotated[Optional[str], Query(pattern="^(global|domestic)$")] = None,
+    company: Annotated[Optional[int], Query(ge=0)] = None,
+    board: Annotated[Optional[int], Query(ge=0)] = None,
+    outlook_year: Annotated[Optional[int], Query(ge=2000, le=2099)] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    db: Session = Depends(get_reports_db),
+):
+    """
+    전망 페이지 전용 리포트 목록을 조회합니다.
+    /outlook 프론트엔드 페이지 전용 — search API와 정규식 필터를 분리합니다.
+    """
+    is_postgres = (db.get_bind().dialect.name == "postgresql")
+
+    clauses, params = _build_outlook_clauses(outlook_year, is_postgres=is_postgres)
+    search_clauses, search_params = _build_where_clauses(
+        writer, title, mkt_tp, company, board, is_postgres=is_postgres
+    )
+    clauses.extend(search_clauses)
+    params.extend(search_params)
+
+    if is_postgres:
+        order_by = "ORDER BY r.report_date DESC, r.save_at DESC NULLS LAST, r.report_id DESC, r.firm_id, r.board_id"
+    else:
+        order_by = "ORDER BY r.report_date DESC, CASE WHEN r.save_at IS NULL THEN 1 ELSE 0 END, r.save_at DESC, r.report_id DESC, r.firm_id, r.board_id"
+
+    where_str = "WHERE " + " AND ".join(clauses)
+    sql_base = f"{_base_select_sql(db)} {where_str} {order_by}"
+
+    rows, has_more = _paginate_query(sql_base, limit, offset, db=db, params=params)
+    rows = [_view_row_to_api_item(r) for r in rows]
+    return _collection_response(request, rows, limit, offset, has_more)
+
+
 @router.get("/search", summary="리포트 통합 검색 (Public API)")
 @router.get("/search/", include_in_schema=False)
 @cache_response(ttl=120, prefix="api")  # 2분 캐시 (insert 시 internal webhook으로 무효화)
@@ -432,7 +504,6 @@ async def search_reports(
     tag, sector, stock 파라미터로 enricher 태그 기반 필터링이 가능합니다.
     """
     is_postgres = (db.get_bind().dialect.name == "postgresql")
-    like_op = "ILIKE" if is_postgres else "LIKE"
     
     clauses = []
     params = []
@@ -451,17 +522,11 @@ async def search_reports(
         clauses.append("(r.gemini_summary IS NOT NULL AND r.gemini_summary != '' AND r.gemini_summary != ' ')")
         
     if outlook:
-        clauses.append(f"r.article_title {like_op} '%전망%'")
-        if is_postgres:
-            clauses.append("r.article_title ~* '하반기|상반기|연간|\\d{4}년|\\dH\\d{2}|전망포럼|(?:경제|금융시장|주식시장|시장)\\s*전망|(?:업종|산업)\\s*전망'")
-            clauses.append("r.article_title !~* '\\(\\d{5,6}'")
-            clauses.append("r.article_title !~* '\\[\\d{5,6}/'")
-            clauses.append("r.article_title !~* '\\[[^\\]]+/(매수|매도|중립|시장수익률|Buy|Hold|Sell|Neutral|Outperform|Underperform|Not\\s*Rated|Trading\\s*Buy)'")
-            clauses.append("r.article_title !~* '목표주가'")
-            
-        if outlook_year:
-            clauses.append(f"r.article_title {like_op} %s")
-            params.append(f"%{outlook_year}년%")
+        outlook_clauses, outlook_params = _build_outlook_clauses(
+            outlook_year, is_postgres=is_postgres
+        )
+        clauses.extend(outlook_clauses)
+        params.extend(outlook_params)
             
     if report_id is not None:
         order_by = "ORDER BY r.report_id DESC"
