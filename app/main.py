@@ -250,7 +250,7 @@ def _ensure_llm_view(engine) -> None:
                     mkt_tp              AS market_type,
                     article_title       AS title,
                     article_url         AS source_url,
-                    key                 AS report_unique_key,
+                    report_unique_key,
                     telegram_url        AS telegram_url,
                     pdf_url             AS pdf_file_url,
                     report_unique_key   AS raw_unique_key,
