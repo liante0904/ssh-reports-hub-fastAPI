@@ -11,7 +11,6 @@ class PdfArchiveResponse(BaseModel):
     file_size: Optional[int] = None
     page_count: Optional[int] = None
     pdf_url: Optional[str] = None
-    download_url: Optional[str] = None
     telegram_url: Optional[str] = None
     report_unique_key: Optional[str] = Field(
         default=None,
@@ -42,7 +41,6 @@ class FnGuideMatchedReportResponse(BaseModel):
     firm_nm: str
     article_title: str
     pdf_url: Optional[str] = None
-    download_url: Optional[str] = None
     telegram_url: Optional[str] = None
 
 

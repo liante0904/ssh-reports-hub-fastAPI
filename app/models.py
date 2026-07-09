@@ -135,7 +135,6 @@ class PdfArchive(Base):
     file_size = Column(BigInteger, nullable=True)
     page_count = Column(Integer, nullable=True)
     pdf_url = Column(Text, nullable=True)
-    download_url = Column(Text, nullable=True)
     telegram_url = Column(Text, nullable=True)
     key = Column(Text, nullable=True)
     archive_status = Column(Text, nullable=True)
