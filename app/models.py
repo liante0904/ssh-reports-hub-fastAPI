@@ -51,52 +51,80 @@ class ReportKeyword(Base, TimestampMixin):
     owner = relationship("User", back_populates="keywords")
 
 class SecReport(Base):
+    """
+    증권사 리포트 마스터. 283,933 rows. SSoT: docs/schema.sql.
+
+    Component ownership (이 클래스의 컬럼을 누가 쓰는지):
+      [Scraper]       INSERT  report_id, report_unique_key, firm_id, board_id,
+                              firm_nm, article_title, article_url, writer,
+                              report_date, save_at, mkt_tp, telegram_url, pdf_url
+      [Enricher]      UPDATE  tags, stock_names, stock_tickers, sector,
+                              gemini_summary, summary_time, summary_model,
+                              target_price, rating, revision_type, report_type
+      [FnGuide]       UPDATE  fnguide_summary_id
+      [Scheduler]     UPDATE  telegram_sent
+      [PDF-Archiver]  UPDATE  download_status_yn, pdf_sync_status, pdf_hash,
+                              archive_path, retry_count, sync_status
+
+    jsonb-as-String columns (DB는 jsonb, ORM은 String — parse before use):
+      tags, stock_names, stock_tickers
+
+    Data density (non-NULL ratio):
+      Scraper core: 100% | Enricher tags: 1.2% | AI summary: 0.13% | Premium: 2.5%
+    """
     __tablename__ = MAIN_TABLE_NAME
+
+    # -- [Scraper] INSERT columns --
     report_id = Column(BigInteger, primary_key=True, index=True)
     firm_id = Column(Integer)
     board_id = Column(Integer)
     firm_nm = Column(String)
     article_title = Column(String)
-    source_url = Column("article_url", String)
-    telegram_sent = Column(Boolean, default=False)
-    download_status_yn = Column(String, default="")
-    save_at = Column(DateTime(timezone=True))
-    report_date = Column(Date, nullable=True)
+    source_url = Column("article_url", String)    # DB: article_url, API: source_url
     writer = Column(String, default="")
-    report_unique_key = Column(String, unique=True)
-    telegram_url = Column(String, default="")
+    report_date = Column(Date, nullable=True)
+    save_at = Column(DateTime(timezone=True))
     mkt_tp = Column(String, default="KR")
+    telegram_url = Column(String, default="")
+    pdf_file_url = Column("pdf_url", String, default="")  # DB: pdf_url, API: pdf_file_url
+    report_unique_key = Column(String, unique=True)
+
+    # -- [Scheduler] UPDATE --
+    telegram_sent = Column(Boolean, default=False)
+
+    # -- [Enricher-Tags] UPDATE --
+    tags = Column(String, default="[]")            # jsonb array
+    stock_names = Column(String, default="[]")     # jsonb array
+    stock_tickers = Column(String, default="[]")   # jsonb array
+    sector = Column(String, default="")
+
+    # -- [Enricher-AI] UPDATE --
     gemini_summary = Column(String, nullable=True)
     summary_time = Column(String, nullable=True)
     summary_model = Column(String, nullable=True)
+
+    # -- [Enricher-Premium] UPDATE --
+    target_price = Column(Numeric, nullable=True)      # 목표주가
+    rating = Column(String, nullable=True)             # BUY/HOLD/SELL
+    revision_type = Column(String, nullable=True)      # UPGRADE/DOWNGRADE
+    report_type = Column(String, nullable=True)        # COMPANY/INDUSTRY/MACRO
+
+    # -- [FnGuide] UPDATE --
+    fnguide_summary_id = Column(BigInteger, ForeignKey("tbl_fnguide_report_summaries.summary_id", ondelete="SET NULL"), nullable=True)
+
+    # -- [PDF-Archiver] UPDATE --
+    download_status_yn = Column(String, default="")
+    pdf_sync_status = Column(Integer, default=0)
     archive_path = Column(String, nullable=True)
-    article_text = Column(Text, nullable=True)  # 증권사 view page 본문 텍스트
     retry_count = Column(Integer, default=0)
     sync_status = Column(Integer, default=0)
-    pdf_file_url = Column("pdf_url", String, default="")
-    pdf_sync_status = Column(Integer, default=0)
-    tags = Column(String, default="[]")         # JSON array of tags
-    stock_names = Column(String, default="[]")  # JSON array of stock names
-    sector = Column(String, default="")         # industry sector
-    
-    # ── 프리미엄 5대 속성 컬럼 내재화 ──────────────────
-    target_price = Column(Numeric, nullable=True)  # 목표주가
-    rating = Column(String, nullable=True)         # 투자의견 (BUY, HOLD 등)
-    revision_type = Column(String, nullable=True)  # 목표가 변동 성격 (UPGRADE, DOWNGRADE 등)
-    report_type = Column(String, nullable=True)    # 리포트 분류 (COMPANY, INDUSTRY 등)
-    stock_tickers = Column(String, default="[]")   # 6자리 표준 종목코드 JSON 배열
-    # ──────────────────────────────────────────────────
-    
-    # FnGuide 요약 리포트 매칭 ID
-    fnguide_summary_id = Column(BigInteger, ForeignKey("tbl_fnguide_report_summaries.summary_id", ondelete="SET NULL"), nullable=True)
-    
-    # 발송 이력과의 관계
+
+    # -- [Other] --
+    article_text = Column(Text, nullable=True)     # 증권사 view page 본문 텍스트
+
+    # Relationships
     sent_histories = relationship("ReportSentHistory", back_populates="report")
-
-    # PDF 아카이브와의 관계 (1:1, report_id 기준)
     pdf_archive = relationship("PdfArchive", uselist=False, back_populates="report", foreign_keys="PdfArchive.report_id")
-
-    # FnGuide 요약 리포트와의 관계 (N:1, fnguide_summary_id 기준)
     fnguide_summary = relationship("FnGuideReportSummary", foreign_keys=[fnguide_summary_id], back_populates="sec_reports")
 
 
