@@ -57,10 +57,9 @@ class SecReport(Base):
     board_id = Column(Integer)
     firm_nm = Column(String)
     article_title = Column(String)
-    article_url = Column(String)
+    source_url = Column("article_url", String)
     telegram_sent = Column(Boolean, default=False)
     download_status_yn = Column(String, default="")
-    download_url = Column(String)
     save_at = Column(DateTime(timezone=True))
     report_date = Column(Date, nullable=True)
     writer = Column(String, default="")
@@ -74,7 +73,7 @@ class SecReport(Base):
     article_text = Column(Text, nullable=True)  # 증권사 view page 본문 텍스트
     retry_count = Column(Integer, default=0)
     sync_status = Column(Integer, default=0)
-    pdf_url = Column(String, default="")
+    pdf_file_url = Column("pdf_url", String, default="")
     pdf_sync_status = Column(Integer, default=0)
     tags = Column(String, default="[]")         # JSON array of tags
     stock_names = Column(String, default="[]")  # JSON array of stock names

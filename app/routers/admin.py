@@ -76,7 +76,7 @@ async def get_summarize_command(
         raise NotFoundException("Report not found")
 
     # 요약 대상 PDF URL 결정
-    pdf_url = report.pdf_url or report.telegram_url or report.download_url or ""
+    pdf_url = report.pdf_file_url or report.telegram_url or ""
     if not pdf_url:
         raise ValidationException("No PDF URL available for this report")
 
@@ -139,7 +139,7 @@ async def trigger_summarize(
 
 
     # PDF URL 결정
-    pdf_url = report.pdf_url or report.telegram_url or report.download_url or ""
+    pdf_url = report.pdf_file_url or report.telegram_url or ""
     if not pdf_url:
         raise ValidationException("No PDF URL available for this report")
 

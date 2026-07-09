@@ -71,7 +71,7 @@ async def admin_client():
             report_date=date(2026, 6, 7),
             telegram_sent=True,
             key="test-key-200",
-            pdf_url="https://test.com/report200.pdf",
+            pdf_file_url="https://test.com/report200.pdf",
             gemini_summary=None,
         ),
         SecReport(
@@ -91,9 +91,8 @@ async def admin_client():
             report_date=date(2026, 6, 7),
             telegram_sent=True,
             key="test-key-202",
-            pdf_url=None,
+            pdf_file_url=None,
             telegram_url=None,
-            download_url=None,
             gemini_summary=None,
         ),
     ])

@@ -85,7 +85,7 @@ class SecReportResponse(BaseModel):
     report_date: Optional[str] = None
     article_title: Optional[str] = None
     telegram_url: Optional[str] = None
-    pdf_url: Optional[str] = None
+    pdf_file_url: Optional[str] = None
     writer: Optional[str] = None
     gemini_summary: Optional[str] = None
     tags: Optional[list[str]] = None
@@ -186,9 +186,9 @@ class ReportNotificationResponse(BaseModel):
     firm_id: Optional[int] = Field(default=None, description="증권사 식별 ID")
     summary_model: Optional[str] = None
     message: str
-    pdf_url: Optional[str] = None
+    pdf_file_url: Optional[str] = None
     telegram_url: Optional[str] = None
-    article_url: Optional[str] = None
+    source_url: Optional[str] = None
     created_at: datetime
 
 

@@ -119,8 +119,7 @@ async def get_report_summaries(
                 report_id,
                 coalesce(firm_nm, '') AS firm_nm,
                 coalesce(article_title, '') AS article_title,
-                pdf_url,
-                download_url,
+                pdf_url AS pdf_file_url,
                 telegram_url,
                 fnguide_summary_id
             FROM {MAIN_TABLE_NAME}
