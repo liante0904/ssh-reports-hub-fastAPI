@@ -9,13 +9,13 @@
 
 # CI / CD / Release Flow
 
-이 문서는 백엔드에 맞는 최소 검증 루틴과, 수동 배포 환경에서 효율을 높이는 순서를 정리합니다.
+이 문서는 백엔드의 로컬 검증과 현재 자동 배포 흐름을 정리합니다.
 
 ## 현재 전제
 
-- 배포가 아직 수동 비중이 높다.
-- 그래서 거창한 자동화보다, 실수 줄이는 단일 진입점이 먼저다.
-- `main`은 사실상 운영에 가까우므로 푸시 전 검증이 필요하다.
+- `.github/workflows/deploy.yml`은 `main` push와 수동 dispatch에서 실행된다.
+- CI 테스트가 통과하면 arm64 이미지를 GHCR에 push하고 운영 서버에 blue/green으로 자동 배포한다.
+- 따라서 `main` push 전 로컬 검증이 필요하며, 운영 배포를 원하지 않는 변경은 main에 push하지 않는다.
 
 ## 가장 효율적인 최소 루틴
 
@@ -32,24 +32,16 @@
 - 주요 신규 API 1개
 - 프론트와 붙는 핵심 응답 1개
 
-## 다음에 붙일 자동화 우선순위
+## 자동 배포 흐름
 
-### 1순위
-- CI에서 `make verify` 재실행
-- 실패 시 배포 중단
+1. `uv sync --frozen` 및 `tests/test_api_mocked.py` 실행
+2. `ghcr.io/liante0904/ssh-reports-hub-fastapi` arm64 이미지 build/push
+3. `deploy_prepare.py`로 서버 checkout을 요청 SHA에 고정하고 `generate_env.py` 실행
+4. 비활성 blue/green 컨테이너 기동
+5. `external-nginx` 내부 `/health` 확인 후 `target.inc` 전환 및 nginx reload
+6. 성공 후 이전 컨테이너 정리; health 실패 시 신규 컨테이너 제거 후 workflow 실패
 
-### 2순위
-- main push 시 자동 배포
-- 배포 후 스모크 테스트
-
-### 3순위
-- preview 배포
-- 롤백
-
-### 4순위
-- 린트
-- 타입/정적 검사
-- E2E
+추가 자동화 후보는 전체 테스트/정적 검사 확대와 배포 후 주요 API smoke test다.
 
 ## 이 프로젝트에서 먼저 챙길 것
 
@@ -61,7 +53,7 @@
 
 - 앱 컨테이너는 `ssh-reports-hub-fastapi-blue`, `ssh-reports-hub-fastapi-green` 두 서비스 중 하나만 active target으로 둔다.
 - `external-nginx`의 `/etc/nginx/conf.d/target.inc`가 현재 active target을 결정한다.
-- 배포 전 `~/secrets/deploy_prepare.py`와 `~/secrets/generate_env.py`로 서버 작업 디렉터리의 `.env`를 생성/갱신한다.
+- GitHub Actions가 `~/secrets/deploy_prepare.py`와 `~/secrets/generate_env.py`를 호출해 서버 checkout과 `.env`를 준비한다. 운영에서 이를 수동 선행 작업으로 반복하지 않는다.
 - 신규 color 컨테이너를 먼저 띄우고, `external-nginx` 컨테이너 내부에서 `/health`가 성공할 때만 `target.inc`를 바꾼 뒤 `nginx -s reload` 한다.
 - 초기 전환 시 기존 `ssh-reports-hub-fastapi-prod`는 새 color 전환이 성공한 뒤에만 제거한다.
 
@@ -79,8 +71,8 @@
 
 ## 메모
 
-- 수동 배포 문화에서는 CI/CD를 한 번에 다 넣기보다, 먼저 `make verify` 같은 명령어 묶음이 효과가 크다.
-- 이후에 GitHub Actions나 다른 파이프라인은 이 명령을 그대로 재사용하면 된다.
+- workflow의 실제 테스트는 현재 `tests/test_api_mocked.py`다. 로컬 `make verify`와 범위가 같다고 가정하지 않는다.
+- 자동 롤백은 트래픽 전환 전 health 실패에 대해 신규 color를 제거하는 방식이다. 전환 이후 장애는 별도 운영 판단이 필요하다.
 
 
 ---
@@ -193,4 +185,3 @@ RATE_LIMIT_DEFAULT=120/minute
 
 
 ---
-

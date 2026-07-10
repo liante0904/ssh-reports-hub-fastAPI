@@ -52,7 +52,10 @@ class ReportKeyword(Base, TimestampMixin):
 
 class SecReport(Base):
     """
-    증권사 리포트 마스터. 283,933 rows. SSoT: docs/schema.sql.
+    증권사 리포트 마스터 ORM 매핑.
+
+    스키마 권위는 운영 catalog와 versioned migration에 있고,
+    상위 저장소의 docs/schema.sql은 reference snapshot이다.
 
     Component ownership (이 클래스의 컬럼을 누가 쓰는지):
       [Scraper]       INSERT  report_id, report_unique_key, firm_id, board_id,
