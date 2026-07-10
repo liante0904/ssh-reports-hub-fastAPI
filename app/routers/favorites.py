@@ -34,7 +34,7 @@ async def get_favorites(
     placeholder = "%s" if reports_db.get_bind().dialect.name == "postgresql" else "?"
     sql = f"""
         SELECT r.report_id, r.firm_id, r.board_id, r.firm_nm, r.article_title,
-               r.article_url AS source_url, r.telegram_sent, r.pdf_url AS pdf_file_url, r.telegram_url,
+               NULL AS source_url, r.telegram_sent, r.pdf_url AS pdf_file_url, r.telegram_url,
                r.writer, r.report_date, r.save_at, r.report_unique_key, r.mkt_tp,
                r.gemini_summary, r.summary_time, r.summary_model,
                p.page_count AS pdf_page_count, p.file_name AS pdf_file_name,

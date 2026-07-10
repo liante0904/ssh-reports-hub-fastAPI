@@ -107,7 +107,7 @@ async def get_summary_notifications(
         n_tbl = "tbl_sec_reports_notifications"
         ph = "%s" if is_pg else "?"
         cur.execute(f"SELECT n.id, n.report_id, n.article_title, n.firm_nm, n.summary_model,"
-                    f" n.message, n.created_at, r.pdf_url AS pdf_file_url, r.telegram_url, r.article_url AS source_url, r.firm_id"
+                    f" n.message, n.created_at, r.pdf_url AS pdf_file_url, r.telegram_url, NULL AS source_url, r.firm_id"
                     f" FROM {n_tbl} n LEFT JOIN {r_tbl} r ON n.report_id = r.report_id"
                     f" ORDER BY n.created_at DESC LIMIT {ph}", [limit])
         rows = [dict(zip([d[0] for d in cur.description], row)) for row in cur.fetchall()]

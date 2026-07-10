@@ -56,7 +56,7 @@ class SecReport(Base):
 
     Component ownership (이 클래스의 컬럼을 누가 쓰는지):
       [Scraper]       INSERT  report_id, report_unique_key, firm_id, board_id,
-                              firm_nm, article_title, article_url, writer,
+                              firm_nm, article_title, writer,
                               report_date, save_at, mkt_tp, telegram_url, pdf_url
       [Enricher]      UPDATE  tags, stock_names, stock_tickers, sector,
                               gemini_summary, summary_time, summary_model,
@@ -80,7 +80,6 @@ class SecReport(Base):
     board_id = Column(Integer)
     firm_nm = Column(String)
     article_title = Column(String)
-    source_url = Column("article_url", String)    # DB: article_url, API: source_url
     writer = Column(String, default="")
     report_date = Column(Date, nullable=True)
     save_at = Column(DateTime(timezone=True))
@@ -88,6 +87,11 @@ class SecReport(Base):
     telegram_url = Column(String, default="")
     pdf_file_url = Column("pdf_url", String, default="")  # DB: pdf_url, API: pdf_file_url
     report_unique_key = Column(String, unique=True)
+
+    @property
+    def source_url(self):
+        """Legacy API attribute; article_url is no longer a physical report column."""
+        return None
 
     # -- [Scheduler] UPDATE --
     telegram_sent = Column(Boolean, default=False)
