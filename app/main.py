@@ -110,8 +110,7 @@ async def lifespan(app: FastAPI):
     _ensure_tags_columns(reports_engine)
     _ensure_send_history_trigger(reports_engine)
     _migrate_telegram_sent(reports_engine)
-    _ensure_llm_view(reports_engine)
-    _ensure_reports_api_view(reports_engine)
+    _validate_required_views(reports_engine)
     _ensure_article_text_column(reports_engine)
 
     # cache warming
@@ -233,141 +232,23 @@ def _migrate_telegram_sent(engine) -> None:
 # _migrate_save_at removed — save_time → save_at migration completed (2026-07-03)
 
 
-def _ensure_llm_view(engine) -> None:
-    """LLM 친화적 컬럼명으로 tbl_sec_reports를 감싼 VIEW 생성 (PostgreSQL 전용)"""
+def _validate_required_views(engine) -> None:
+    """Report missing PostgreSQL views without mutating the schema at startup."""
     if engine.dialect.name != "postgresql":
         return
-    try:
-        with engine.begin() as conn:
-            conn.execute(text("""
-                CREATE OR REPLACE VIEW v_reports AS SELECT
-                    report_id,
-                    firm_id             AS broker_id,
-                    firm_id             AS firm_id,
-                    firm_nm             AS broker_name,
-                    board_id            AS board_category_id,
-                    board_id            AS board_id,
-                    mkt_tp              AS market_type,
-                    article_title       AS title,
-                    NULL::text          AS source_url,
-                    report_unique_key,
-                    telegram_url        AS telegram_url,
-                    pdf_url             AS pdf_file_url,
-                    report_unique_key   AS raw_unique_key,
-                    report_date::text AS published_date,
-                    save_at             AS scraped_at,
-                    save_at             AS scraped_at_tz,
-                    writer              AS analyst_name,
-                    gemini_summary      AS llm_summary,
-                    summary_time        AS summary_created_at,
-                    summary_model       AS summary_model,
-                    telegram_sent       AS notification_sent,
-                    download_status_yn  AS pdf_download_status_legacy,
-                    archive_path        AS archive_pdf_path,
-                    tags                AS tags_json,
-                    stock_names         AS stock_names_json,
-                    sector              AS sector_name,
-                    stock_tickers       AS stock_tickers_json,
-                    target_price        AS target_price,
-                    rating              AS rating,
-                    revision_type       AS revision_type,
-                    report_type         AS report_type,
-                    retry_count         AS pdf_download_retry_count,
-                    sync_status         AS archive_sync_status,
-                    pdf_sync_status     AS pdf_sync_status_code
-                FROM tbl_sec_reports
-            """))
-            logger.info("Migration: v_reports LLM-friendly VIEW created/updated")
-    except Exception as exc:
-        logger.warning("Could not ensure llm VIEW (non-fatal): %s", exc)
-
-
-def _ensure_reports_api_view(engine) -> None:
-    """FastAPI external_api에서 사용할 통합 VIEW v_reports_api 생성"""
-    dialect_name = engine.dialect.name
-    
-    create_view_sql = """
-        SELECT 
-            r.report_id, 
-            r.firm_nm AS firm_name, 
-            r.firm_nm AS firm_nm,
-            r.report_date AS report_date,
-            r.article_title AS title, 
-            r.article_title AS article_title,
-            r.telegram_url,
-            r.pdf_url AS pdf_file_url,
-            r.writer, 
-            r.gemini_summary, 
-            r.tags, 
-            r.stock_names, 
-            r.sector,
-            r.target_price, 
-            r.rating, 
-            r.revision_type, 
-            r.report_type, 
-            r.stock_tickers,
-            r.firm_id AS firm_id,
-            r.board_id AS board_id,
-            r.save_at AS scraped_at,
-            r.save_at AS save_at,
-            r.report_unique_key, 
-            r.mkt_tp AS market_type, 
-            r.mkt_tp AS mkt_tp,
-            NULL AS source_url,
-            r.summary_time,
-            r.summary_model, 
-            r.telegram_sent,
-            p.report_id AS pdf_report_id, 
-            p.file_path AS pdf_file_path, 
-            p.file_size AS pdf_file_size, 
-            p.page_count AS pdf_page_count, 
-            p.page_count AS page_count,
-            p.archive_status AS pdf_archive_status, 
-            p.file_name AS pdf_file_name, 
-            p.has_text AS pdf_has_text, 
-            p.is_encrypted AS pdf_is_encrypted, 
-            p.storage_backend AS pdf_storage_backend, 
-            p.storage_key AS pdf_storage_key, 
-            p.author AS pdf_author, 
-            p.created_at AS pdf_created_at, 
-            p.updated_at AS pdf_updated_at, 
-            p.last_accessed_at AS pdf_last_accessed_at,
-            fs.summary_id AS fs_summary_id, 
-            fs.source_page_url AS fs_source_page_url, 
-            fs.report_date AS fs_report_date, 
-            fs.company_name AS fs_company_name, 
-            fs.company_code AS fs_company_code, 
-            fs.report_title AS fs_report_title, 
-            fs.summary_text AS fs_summary_text, 
-            fs.opinion AS fs_opinion, 
-            fs.target_price AS fs_target_price, 
-            fs.prev_close AS fs_prev_close, 
-            fs.provider AS fs_provider, 
-            fs.author AS fs_author, 
-            fs.article_url AS fs_article_url, 
-            fs.pdf_url AS fs_pdf_url, 
-            fs.report_key AS fs_report_key, 
-            fs.item_rank AS fs_item_rank, 
-            fs.sync_status AS fs_sync_status, 
-            fs.created_at AS fs_created_at, 
-            fs.updated_at AS fs_updated_at,
-            f.telegram_update_yn AS is_direct
-        FROM tbl_sec_reports r
-        LEFT OUTER JOIN tbl_sec_reports_pdf_archive p ON r.report_id = p.report_id
-        LEFT OUTER JOIN tbl_fnguide_report_summaries fs ON r.fnguide_summary_id = fs.summary_id
-        LEFT OUTER JOIN tbm_sec_firm_info f ON r.firm_id = f.firm_id
-    """
 
     try:
-        with engine.begin() as conn:
-            if dialect_name == "postgresql":
-                conn.execute(text(f"CREATE OR REPLACE VIEW v_reports_api AS {create_view_sql}"))
-            else:
-                conn.execute(text("DROP VIEW IF EXISTS v_reports_api"))
-                conn.execute(text(f"CREATE VIEW v_reports_api AS {create_view_sql}"))
-        logger.info("Migration: v_reports_api VIEW created/updated")
+        existing_views = set(inspect(engine).get_view_names())
     except Exception as exc:
-        logger.warning("Could not ensure v_reports_api VIEW (non-fatal): %s", exc)
+        logger.warning("Could not inspect report views (non-fatal): %s", exc)
+        return
+
+    missing_views = sorted({"v_reports", "v_reports_api"} - existing_views)
+    if missing_views:
+        logger.warning(
+            "Missing report views: %s; run scripts/apply_migrations.py before deployment",
+            ", ".join(missing_views),
+        )
 
 
 def _ensure_article_text_column(engine) -> None:

@@ -145,6 +145,8 @@ jobs:
             docker compose rm -f "ssh-reports-hub-fastapi-$TARGET_COLOR" 2>/dev/null || true
 
             docker compose pull "ssh-reports-hub-fastapi-$TARGET_COLOR"
+            docker compose run --rm --no-deps "ssh-reports-hub-fastapi-$TARGET_COLOR" \
+              /opt/venv/bin/python scripts/apply_migrations.py
             docker compose up -d --no-build --force-recreate "ssh-reports-hub-fastapi-$TARGET_COLOR"
 
             echo "Health check..."
