@@ -155,6 +155,7 @@ class TestParseJsonField:
 # 2. TagExtractionManager 추출 정확도 테스트
 # ═══════════════════════════════════════════════════════════════════
 
+@pytest.mark.integration
 class TestTagExtraction:
     """규칙 기반 태그 추출 정확도"""
 

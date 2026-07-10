@@ -106,7 +106,7 @@ async def test_external_api_scraped_at_fallback(client):
     assert len(items) >= 2
     
     # key 순서에 관계없이 맵 구성
-    report_map = {item["key"]: item for item in items}
+    report_map = {item["report_unique_key"]: item for item in items}
     
     # save_at이 없는 A증권 리포트
     item1 = report_map.get("key-1")
@@ -167,13 +167,13 @@ async def test_favorites_api_scraped_at(client):
     assert len(items) >= 2
     
     # report_id=2 에 대응되는 favorite 아이템 검증
-    fav2 = next((x for x in items if x["key"] == "key-2"), None)
+    fav2 = next((x for x in items if x["report_unique_key"] == "key-2"), None)
     assert fav2 is not None
     assert "save_time" not in fav2
     assert "2026-04-21T11:00:00" in fav2["scraped_at"]
     
     # report_id=1 에 대응되는 favorite 아이템 검증 (save_at 없음)
-    fav1 = next((x for x in items if x["key"] == "key-1"), None)
+    fav1 = next((x for x in items if x["report_unique_key"] == "key-1"), None)
     assert fav1 is not None
     assert "save_time" not in fav1
     assert fav1["scraped_at"] is None

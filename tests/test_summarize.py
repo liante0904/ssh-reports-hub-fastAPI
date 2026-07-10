@@ -17,7 +17,10 @@ from app.main import app
 from app.dependencies import get_user_from_token
 from app.models import SecReport, User
 from app.settings import Settings
-import ssh_library.antigravity_manager as _ag_mgr
+_ag_mgr = pytest.importorskip(
+    "ssh_library.antigravity_manager",
+    reason="optional ssh_library is not installed in standalone backend CI",
+)
 import ssh_library.deepseek_manager as _ds_mgr
 
 
@@ -70,7 +73,7 @@ async def admin_client():
             article_title="반도체 전망 리포트",
             report_date=date(2026, 6, 7),
             telegram_sent=True,
-            key="test-key-200",
+            report_unique_key="test-key-200",
             pdf_file_url="https://test.com/report200.pdf",
             gemini_summary=None,
         ),
@@ -80,8 +83,8 @@ async def admin_client():
             article_title="이미 요약된 리포트",
             report_date=date(2026, 6, 7),
             telegram_sent=True,
-            key="test-key-201",
-            pdf_url="https://test.com/report201.pdf",
+            report_unique_key="test-key-201",
+            pdf_file_url="https://test.com/report201.pdf",
             gemini_summary="기존에 존재하는 훌륭한 요약 내용입니다.",
         ),
         SecReport(
@@ -90,7 +93,7 @@ async def admin_client():
             article_title="PDF 링크 없는 리포트",
             report_date=date(2026, 6, 7),
             telegram_sent=True,
-            key="test-key-202",
+            report_unique_key="test-key-202",
             pdf_file_url=None,
             telegram_url=None,
             gemini_summary=None,

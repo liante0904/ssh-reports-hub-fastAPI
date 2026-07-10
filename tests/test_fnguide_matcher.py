@@ -20,6 +20,7 @@ engine = create_engine(
     poolclass=StaticPool,
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+INTERNAL_TEST_TOKEN = "fnguide-internal-test-token-000001"
 
 
 @pytest.fixture
@@ -55,9 +56,13 @@ async def client(db_session):
             status="active"
         )
 
+    async def override_get_settings():
+        return Settings(jwt_secret_key=INTERNAL_TEST_TOKEN)
+
     app.dependency_overrides[get_reports_db] = override_get_reports_db
     app.dependency_overrides[get_keywords_db] = override_get_keywords_db
     app.dependency_overrides[get_user_from_token] = override_get_user_from_token
+    app.dependency_overrides[get_settings_dep] = override_get_settings
 
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
@@ -246,14 +251,9 @@ async def test_trigger_fnguide_match_internal_api(client, db_session):
     )
     assert response_bad_token.status_code == 403
 
-    # 올바른 토큰 케이스 테스트 (settings.JWT_SECRET_KEY 검증)
-    from app.settings import get_settings
-    settings = get_settings()
-    correct_token = settings.jwt_secret_key
-
     response_success = await client.post(
         "/admin/fnguide/match-internal?limit=10&dry_run=false",
-        headers={"X-Internal-Token": correct_token}
+        headers={"X-Internal-Token": INTERNAL_TEST_TOKEN}
     )
     assert response_success.status_code == 200
     data = response_success.json()

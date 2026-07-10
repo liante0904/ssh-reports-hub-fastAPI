@@ -49,8 +49,7 @@ jobs:
         run: uv sync --frozen
 
       - name: Run Tests
-        # 모킹된 테스트를 실행하여 CI 환경에서 로직 무결성을 검증합니다.
-        run: uv run pytest tests/test_api_mocked.py
+        run: scripts/verify_ci.sh
 
       - name: Log in to the Container registry
         uses: docker/login-action@v3
