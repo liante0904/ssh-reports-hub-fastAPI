@@ -10,18 +10,46 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from datetime import datetime, date
 import os
+import importlib.util
+import sys
+import types
 import uuid
+
+
+if importlib.util.find_spec("ssh_library") is None:
+    ssh_library = types.ModuleType("ssh_library")
+    ssh_library.__path__ = []
+
+    class _Config:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+
+    class _Manager:
+        def __init__(self, config):
+            self.config = config
+
+        async def summarize(self, **kwargs):
+            raise AssertionError("summarize must be mocked in this test")
+
+    ssh_library.DeepSeekConfig = _Config
+    ssh_library.DeepSeekManager = _Manager
+    ssh_library.AntigravityConfig = _Config
+    ssh_library.AntigravityManager = _Manager
+
+    deepseek_manager = types.ModuleType("ssh_library.deepseek_manager")
+    deepseek_manager.DeepSeekManager = _Manager
+    antigravity_manager = types.ModuleType("ssh_library.antigravity_manager")
+    antigravity_manager.AntigravityManager = _Manager
+
+    sys.modules["ssh_library"] = ssh_library
+    sys.modules["ssh_library.deepseek_manager"] = deepseek_manager
+    sys.modules["ssh_library.antigravity_manager"] = antigravity_manager
 
 from app.database import Base, get_reports_db, get_keywords_db
 from app.main import app
 from app.dependencies import get_user_from_token
 from app.models import SecReport, User
 from app.settings import Settings
-_ag_mgr = pytest.importorskip(
-    "ssh_library.antigravity_manager",
-    reason="optional ssh_library is not installed in standalone backend CI",
-)
-import ssh_library.deepseek_manager as _ds_mgr
 
 
 
