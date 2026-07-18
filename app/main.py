@@ -421,6 +421,7 @@ app.include_router(reports.router)
 app.include_router(external_api.router)
 app.include_router(favorites.router)
 app.include_router(fnguide_reports.router)
+app.include_router(fnguide_reports.api_router)
 
 
 @app.get("/health")

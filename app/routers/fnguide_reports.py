@@ -14,6 +14,10 @@ logger = logging.getLogger("app.fnguide")
 
 router = APIRouter(prefix="/pub/api/fnguide", tags=["fnguide-reports"])
 
+# ── /api/fnguide compatibility router (frontend contract) ──────────────────
+# Handlers are shared with /pub/api/fnguide — no logic duplication.
+api_router = APIRouter(prefix="/api/fnguide", tags=["fnguide-reports-frontend"])
+
 
 def _build_report_filter_sql(
     q: Optional[str],
@@ -60,6 +64,8 @@ def _row_to_dict(row) -> dict:
 
 @router.get("/report-summaries", response_model=list[FnGuideReportSummaryResponse], summary="FnGuide 리포트 요약 목록 조회")
 @router.get("/report-summaries/", response_model=list[FnGuideReportSummaryResponse], include_in_schema=False)
+@api_router.get("/report-summaries", response_model=list[FnGuideReportSummaryResponse], summary="FnGuide 리포트 요약 조회 (frontend)")
+@api_router.get("/report-summaries/", response_model=list[FnGuideReportSummaryResponse], include_in_schema=False)
 @cache_response(ttl=300, prefix="api")  # 5분 캐시 (insert 시 internal webhook으로 무효화)
 async def get_report_summaries(
     request: Request,
@@ -144,6 +150,8 @@ async def get_report_summaries(
 
 @router.get("/report-dates", response_model=list[FnGuideReportDateResponse], summary="FnGuide 리포트 날짜별 개수 집계")
 @router.get("/report-dates/", response_model=list[FnGuideReportDateResponse], include_in_schema=False)
+@api_router.get("/report-dates", response_model=list[FnGuideReportDateResponse], summary="FnGuide 리포트 날짜 집계 (frontend)")
+@api_router.get("/report-dates/", response_model=list[FnGuideReportDateResponse], include_in_schema=False)
 async def get_report_dates(
     q: Annotated[Optional[str], Query(min_length=1, max_length=100)] = None,
     provider: Annotated[Optional[str], Query(min_length=1, max_length=100)] = None,
