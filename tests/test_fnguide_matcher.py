@@ -419,3 +419,54 @@ def test_matcher_skips_blank_and_invalid_dates(db_session):
     assert result["status"] == "success"
     assert result["matched_count"] == 0
     assert result["total_processed"] == 2
+
+
+@pytest.mark.anyio
+async def test_api_fnguide_report_summaries_returns_200(client, db_session):
+    """GET /api/fnguide/report-summaries returns 200 (frontend contract)."""
+    db_session.add(FnGuideReportSummary(
+        summary_id=701, company_name="삼성전자", report_date="2026-07-01",
+        provider="KB증권", author="홍길동", report_title="삼성전자 분석",
+        summary_text="분석", report_key="k701",
+    ))
+    db_session.commit()
+
+    resp = await client.get("/api/fnguide/report-summaries?report_date=2026-07-01")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["summary_id"] == 701
+
+
+@pytest.mark.anyio
+async def test_api_fnguide_report_dates_returns_200(client, db_session):
+    """GET /api/fnguide/report-dates returns 200 (frontend contract)."""
+    db_session.add(FnGuideReportSummary(
+        summary_id=801, company_name="현대차", report_date="2026-07-02",
+        provider="메리츠증권", author="김연구", report_title="현대차 분석",
+        summary_text="분석", report_key="k801",
+    ))
+    db_session.commit()
+
+    resp = await client.get("/api/fnguide/report-dates")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) >= 1
+    assert data[0]["report_count"] >= 1
+
+
+@pytest.mark.anyio
+async def test_pub_api_fnguide_still_works(client, db_session):
+    """GET /pub/api/fnguide/report-dates still returns 200 (legacy compat)."""
+    db_session.add(FnGuideReportSummary(
+        summary_id=901, company_name="LG전자", report_date="2026-07-03",
+        provider="하나증권", author="박분석", report_title="LG전자 분석",
+        summary_text="분석", report_key="k901",
+    ))
+    db_session.commit()
+
+    resp = await client.get("/pub/api/fnguide/report-dates?report_date=2026-07-03")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["report_date"] == "2026-07-03"
