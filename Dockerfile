@@ -11,7 +11,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PATH="/opt/venv/bin:$PATH"
 
 # uv 설치 및 환경 설정
-RUN pip install --no-cache-dir uv
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends rclone \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir uv
 
 # uv를 사용하여 의존성 설치. /app은 런타임 bind mount 대상이므로 venv는 /opt에 둔다.
 COPY pyproject.toml uv.lock .python-version ./
