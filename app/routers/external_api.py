@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from ..cache import cache_response, invalidate_prefix
 from ..database import get_reports_db
-from ..models import SecReport, SecFirmInfo, SecBoardInfo, PdfArchive
+from ..models import SecReport, SecFirmInfo, SecBoardInfo
 from ..schemas import CompanyResponse, BoardResponse, SecReportResponse
 
 # External API 라우터 — 프론트엔드가 직접 호출하는 공개 API
@@ -78,17 +78,28 @@ def _sent_report_filter():
 @router.get("/reports/{report_id}/archive-download", summary="아카이브 PDF 다운로드")
 async def download_archived_pdf(report_id: int, db: Session = Depends(get_reports_db)):
     """Download an archived PDF without exposing the Drive key or credentials."""
-    archive = db.get(PdfArchive, report_id)
-    if not archive or archive.archive_status != "ARCHIVED" or not archive.storage_key:
+    # PdfArchive ORM still carries retired legacy columns. Query only the live
+    # archive contract so a download request cannot fail on those stale fields.
+    rows = _execute_raw_psycopg2_query(
+        db,
+        """
+        SELECT archive_status, storage_key, storage_backend, file_name
+        FROM tbl_sec_reports_pdf_archive
+        WHERE report_id = %s
+        """,
+        [report_id],
+    )
+    archive = rows[0] if rows else None
+    if not archive or archive["archive_status"] != "ARCHIVED" or not archive["storage_key"]:
         raise HTTPException(status_code=404, detail="Archived PDF not found")
-    if archive.storage_backend and archive.storage_backend != "googledrive":
+    if archive["storage_backend"] and archive["storage_backend"] != "googledrive":
         raise HTTPException(status_code=404, detail="Archived PDF not found")
 
     try:
         local_file = await asyncio.to_thread(
             _download_archive_file,
-            archive.storage_key,
-            archive.file_name or f"report-{report_id}.pdf",
+            archive["storage_key"],
+            archive["file_name"] or f"report-{report_id}.pdf",
         )
     except ValueError:
         raise HTTPException(status_code=404, detail="Archived PDF not found")
@@ -100,7 +111,7 @@ async def download_archived_pdf(report_id: int, db: Session = Depends(get_report
     return FileResponse(
         local_file,
         media_type="application/pdf",
-        filename=Path(archive.file_name or f"report-{report_id}.pdf").name,
+        filename=Path(archive["file_name"] or f"report-{report_id}.pdf").name,
         background=BackgroundTask(_remove_download_temp_file, local_file),
     )
 
