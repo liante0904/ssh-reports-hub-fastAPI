@@ -1,5 +1,3 @@
-from types import SimpleNamespace
-
 import pytest
 
 from app.routers import external_api
@@ -24,13 +22,14 @@ def test_archive_remote_path_rejects_unsafe_keys(storage_key):
 async def test_archive_download_returns_pdf_without_exposing_storage_key(tmp_path, monkeypatch):
     local_pdf = tmp_path / "archived.pdf"
     local_pdf.write_bytes(b"%PDF-1.7\\n")
-    archive = SimpleNamespace(
-        archive_status="ARCHIVED",
-        storage_key="2026-08/DB증권/report_1.pdf",
-        storage_backend="googledrive",
-        file_name="DB report.pdf",
-    )
-    db = SimpleNamespace(get=lambda model, report_id: archive)
+    archive = {
+        "archive_status": "ARCHIVED",
+        "storage_key": "2026-08/DB증권/report_1.pdf",
+        "storage_backend": "googledrive",
+        "file_name": "DB report.pdf",
+    }
+    db = object()
+    monkeypatch.setattr(external_api, "_execute_raw_psycopg2_query", lambda *args: [archive])
     monkeypatch.setattr(external_api, "_download_archive_file", lambda *args: local_pdf)
 
     response = await external_api.download_archived_pdf(1, db)
