@@ -1,8 +1,15 @@
+import asyncio
 import os
+import shutil
+import subprocess
+import tempfile
+from pathlib import Path, PurePosixPath
 from typing import Annotated, Optional
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fastapi.responses import FileResponse
+from starlette.background import BackgroundTask
 from sqlalchemy import and_, or_, func, text
 from sqlalchemy.orm import Session, joinedload
 
@@ -15,8 +22,87 @@ from ..schemas import CompanyResponse, BoardResponse, SecReportResponse
 router = APIRouter(prefix="/external/api", tags=["external-api"])
 
 
+def _archive_remote_path(storage_key: str) -> str:
+    """Return a confined rclone remote path for a DB-provided archive key."""
+    raw_key = str(storage_key or "").replace("\\", "/").strip()
+    if raw_key.startswith("/"):
+        raise ValueError("invalid archive storage key")
+    key = raw_key.strip("/")
+    path = PurePosixPath(key)
+    if not key or path.is_absolute() or ".." in path.parts:
+        raise ValueError("invalid archive storage key")
+    remote = os.getenv("PDF_ARCHIVE_RCLONE_REMOTE", "gdrive:archive/pdf").rstrip("/")
+    return f"{remote}/{path.as_posix()}"
+
+
+def _download_archive_file(storage_key: str, file_name: str) -> Path:
+    """Copy a single Drive archive object to an isolated temporary file."""
+    rclone_bin = os.getenv("PDF_ARCHIVE_RCLONE_BIN") or shutil.which("rclone")
+    if not rclone_bin:
+        raise RuntimeError("archive downloader is not configured")
+
+    temp_dir = Path(tempfile.mkdtemp(prefix="ssh-report-archive-"))
+    target = temp_dir / (Path(file_name or "report.pdf").name or "report.pdf")
+    command = [rclone_bin]
+    rclone_config = os.getenv("PDF_ARCHIVE_RCLONE_CONFIG")
+    if rclone_config:
+        command.extend(["--config", rclone_config])
+    command.extend(["copyto", _archive_remote_path(storage_key), str(target)])
+
+    try:
+        completed = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=int(os.getenv("PDF_ARCHIVE_DOWNLOAD_TIMEOUT_SECONDS", "45")),
+            check=False,
+        )
+    except Exception:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        raise
+
+    if completed.returncode != 0 or not target.is_file() or target.stat().st_size == 0:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        raise RuntimeError("archived PDF is unavailable")
+    return target
+
+
+def _remove_download_temp_file(path: Path) -> None:
+    shutil.rmtree(path.parent, ignore_errors=True)
+
+
 def _sent_report_filter():
     return SecReport.telegram_sent == True
+
+
+@router.get("/reports/{report_id}/archive-download", summary="아카이브 PDF 다운로드")
+async def download_archived_pdf(report_id: int, db: Session = Depends(get_reports_db)):
+    """Download an archived PDF without exposing the Drive key or credentials."""
+    archive = db.get(PdfArchive, report_id)
+    if not archive or archive.archive_status != "ARCHIVED" or not archive.storage_key:
+        raise HTTPException(status_code=404, detail="Archived PDF not found")
+    if archive.storage_backend and archive.storage_backend != "googledrive":
+        raise HTTPException(status_code=404, detail="Archived PDF not found")
+
+    try:
+        local_file = await asyncio.to_thread(
+            _download_archive_file,
+            archive.storage_key,
+            archive.file_name or f"report-{report_id}.pdf",
+        )
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Archived PDF not found")
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Archive download timed out")
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+    return FileResponse(
+        local_file,
+        media_type="application/pdf",
+        filename=Path(archive.file_name or f"report-{report_id}.pdf").name,
+        background=BackgroundTask(_remove_download_temp_file, local_file),
+    )
 
 def _execute_raw_psycopg2_query(db: Session, sql_str: str, params: list = None) -> list:
     if params is None:

@@ -14,6 +14,7 @@ services:
     volumes:
       - .:/app
       - /home/ubuntu/workspace/lib/ssh_library:/opt/ssh-library:ro
+      - /home/ubuntu/.config/rclone/rclone.conf:/etc/rclone/rclone.conf:ro
       - /home/ubuntu/legacy/telegram-stock-info-bot/send:/screening_files:ro
       - /home/ubuntu/workspace/external.reports-hub/apps/backend/ssh-reports-hub-fastAPI/logs:/logs/scraper:ro
       - /home/ubuntu/logs:/logs/main:ro
@@ -27,6 +28,8 @@ services:
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_DB=${REDIS_DB:-0}
+      - PDF_ARCHIVE_RCLONE_CONFIG=/etc/rclone/rclone.conf
+      - PDF_ARCHIVE_RCLONE_REMOTE=${PDF_ARCHIVE_RCLONE_REMOTE:-gdrive:archive/pdf}
     restart: always
     networks:
       - public-net
@@ -48,6 +51,7 @@ services:
     volumes:
       - .:/app
       - /home/ubuntu/workspace/lib/ssh_library:/opt/ssh-library:ro
+      - /home/ubuntu/.config/rclone/rclone.conf:/etc/rclone/rclone.conf:ro
       - /home/ubuntu/legacy/telegram-stock-info-bot/send:/screening_files:ro
       - /home/ubuntu/workspace/external.reports-hub/apps/backend/ssh-reports-hub-fastAPI/logs:/logs/scraper:ro
       - /home/ubuntu/logs:/logs/main:ro
@@ -61,6 +65,8 @@ services:
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_DB=${REDIS_DB:-0}
+      - PDF_ARCHIVE_RCLONE_CONFIG=/etc/rclone/rclone.conf
+      - PDF_ARCHIVE_RCLONE_REMOTE=${PDF_ARCHIVE_RCLONE_REMOTE:-gdrive:archive/pdf}
     restart: always
     networks:
       - public-net
