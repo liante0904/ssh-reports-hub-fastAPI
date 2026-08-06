@@ -1,7 +1,7 @@
 import pytest
 
 from app.routers import external_api
-from app.routers.external_api import _archive_remote_path
+from app.routers.external_api import _archive_remote_path, _view_row_to_api_item
 
 
 def test_archive_remote_path_uses_configured_gdrive_root(monkeypatch):
@@ -38,3 +38,18 @@ async def test_archive_download_returns_pdf_without_exposing_storage_key(tmp_pat
     assert response.media_type == "application/pdf"
     assert "DB%20report.pdf" in response.headers["content-disposition"]
     assert "storage_key" not in response.headers["content-disposition"]
+
+
+def test_normalized_archive_payload_survives_collection_response_second_pass():
+    raw_row = {
+        "report_id": 1,
+        "pdf_report_id": 1,
+        "pdf_archive_status": "ARCHIVED",
+        "pdf_storage_key": "2026-08/DB증권/report_1.pdf",
+        "pdf_storage_backend": "googledrive",
+    }
+
+    normalized = _view_row_to_api_item(raw_row)
+
+    assert normalized["pdf_archive"]["archive_status"] == "ARCHIVED"
+    assert _view_row_to_api_item(normalized)["pdf_archive"]["storage_key"] == "2026-08/DB증권/report_1.pdf"
