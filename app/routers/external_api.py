@@ -265,6 +265,11 @@ _VIEW_TO_API_KEY_MAP = {
 
 def _view_row_to_api_item(row) -> dict:
     """v_reports_api 뷰 row → API 응답 dict. 컬럼 추가 시 _VIEW_TO_API_KEY_MAP 만 수정."""
+    # Collection routes normalize rows before handing them to
+    # _collection_response(), which calls this helper once more. Preserve the
+    # already-built nested archive payload on that second pass.
+    if isinstance(row, dict) and "report_id" in row and "pdf_archive" in row:
+        return row
     m = row._mapping if hasattr(row, "_mapping") else row
     item = {api_key: m.get(view_col) for view_col, api_key in _VIEW_TO_API_KEY_MAP.items()}
     item["is_direct"] = (str(m.get("is_direct", "")) == "Y") or None
