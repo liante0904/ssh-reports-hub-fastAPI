@@ -8,6 +8,7 @@ from app.database import get_reports_db, get_keywords_db, Base
 from app.dependencies import get_settings_dep
 from app.security import verify_telegram_data
 from app.settings import Settings
+from app.routers.external_api import _build_where_clauses
 
 # 테스트용 SQLite 메모리 DB 설정
 SQLALCHEMY_DATABASE_URL = "sqlite://"
@@ -58,6 +59,19 @@ async def test_get_reports_empty_db(client):
     response = await client.get("/external/api/reports?limit=5")
     assert response.status_code == 200
     assert response.json() == []
+
+
+def test_overseas_top_pick_title_search_matches_korean_and_english_spellings():
+    clauses, params = _build_where_clauses(
+        writer=None,
+        title="해외주식 탑픽 10선",
+        mkt_tp=None,
+        company=None,
+        is_postgres=True,
+    )
+
+    assert clauses == ["(r.article_title ILIKE %s OR r.article_title ILIKE %s)"]
+    assert params == ["%해외주식%탑픽%", "%해외주식%Top Pick%"]
 
 
 def test_invalid_telegram_auth_logic():

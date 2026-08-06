@@ -344,8 +344,19 @@ def _build_where_clauses(
         clauses.append(f"r.writer {like_op} %s")
         params.append(f"%{writer}%")
     if title:
-        clauses.append(f"r.article_title {like_op} %s")
-        params.append(f"%{title}%")
+        normalized_title = " ".join(title.lower().split())
+        # Shinhan publishes the same monthly overseas Top Picks series with
+        # both Korean ("탑픽 10선") and English ("Top Picks") titles.
+        if "해외주식" in normalized_title and (
+            "탑픽" in normalized_title or "top pick" in normalized_title
+        ):
+            clauses.append(
+                f"(r.article_title {like_op} %s OR r.article_title {like_op} %s)"
+            )
+            params.extend(["%해외주식%탑픽%", "%해외주식%Top Pick%"])
+        else:
+            clauses.append(f"r.article_title {like_op} %s")
+            params.append(f"%{title}%")
     if mkt_tp == "global":
         clauses.append("r.mkt_tp != 'KR'")
     elif mkt_tp == "domestic":
