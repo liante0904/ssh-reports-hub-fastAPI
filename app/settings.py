@@ -10,7 +10,10 @@ class Settings(BaseSettings):
     app_env: str = "prod"
     jwt_secret_key: str = ""
     jwt_algorithm: str = "HS256"
-    access_token_expire_minutes: int = Field(default=60 * 24, ge=5, le=60 * 24 * 30)
+    # Telegram 로그인은 별도의 refresh token 발급 흐름이 없으므로,
+    # 브라우저 재방문 때 매일 재로그인하지 않도록 기본 access token을 30일 유지한다.
+    # 운영 환경에서 ACCESS_TOKEN_EXPIRE_MINUTES를 지정하면 기존처럼 재정의할 수 있다.
+    access_token_expire_minutes: int = Field(default=60 * 24 * 30, ge=5, le=60 * 24 * 30)
     telegram_bot_token: str = ""
     telegram_auth_max_age_seconds: int = Field(default=60 * 60 * 24, ge=60, le=60 * 60 * 24 * 7)
     allow_auth_bypass: bool = False
