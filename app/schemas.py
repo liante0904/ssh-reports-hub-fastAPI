@@ -35,6 +35,10 @@ class PdfArchiveResponse(BaseModel):
     last_accessed_at: Optional[datetime] = None
 
 
+class ArchiveBundleRequest(BaseModel):
+    report_ids: List[int] = Field(min_length=1, max_length=50)
+
+
 class FnGuideMatchedReportResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     report_id: int
@@ -200,4 +204,3 @@ class ReportSentHistoryResponse(BaseModel):
     article_title: Optional[str] = None
     firm_nm: Optional[str] = None
     sent_at: Optional[datetime] = None
-

@@ -1,13 +1,15 @@
 import asyncio
+import json
 import os
 import shutil
 import subprocess
 import tempfile
+import zipfile
 from pathlib import Path, PurePosixPath
 from typing import Annotated, Optional
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
 from sqlalchemy import and_, or_, func, text
@@ -16,7 +18,7 @@ from sqlalchemy.orm import Session, joinedload
 from ..cache import cache_response, invalidate_prefix
 from ..database import get_reports_db
 from ..models import SecReport, SecFirmInfo, SecBoardInfo
-from ..schemas import CompanyResponse, BoardResponse, SecReportResponse
+from ..schemas import ArchiveBundleRequest, CompanyResponse, BoardResponse, SecReportResponse
 
 # External API 라우터 — 프론트엔드가 직접 호출하는 공개 API
 router = APIRouter(prefix="/external/api", tags=["external-api"])
@@ -69,6 +71,104 @@ def _download_archive_file(storage_key: str, file_name: str) -> Path:
 
 def _remove_download_temp_file(path: Path) -> None:
     shutil.rmtree(path.parent, ignore_errors=True)
+
+
+def _bundle_file_name(file_name: str, report_id: int) -> str:
+    """Keep archive entry names flat and safe inside a user ZIP."""
+    name = Path(file_name or f"report-{report_id}.pdf").name
+    return name or f"report-{report_id}.pdf"
+
+
+def _remove_bundle_temp_file(path: Path) -> None:
+    shutil.rmtree(path.parent, ignore_errors=True)
+
+
+@router.post("/reports/archive-bundle", summary="아카이브 PDF 묶음 다운로드")
+async def download_archive_bundle(
+    payload: ArchiveBundleRequest = Body(...),
+    db: Session = Depends(get_reports_db),
+):
+    """Create a ZIP from Drive-backed PDFs without calling broker URLs.
+
+    Files that are not archived are listed in manifest.json for a later,
+    explicitly rate-limited fallback flow. Drive downloads are intentionally
+    sequential to avoid burst traffic against the configured remote.
+    """
+    report_ids = sorted(set(payload.report_ids))
+    rows = _execute_raw_psycopg2_query(
+        db,
+        """
+        SELECT r.report_id, r.article_title, r.firm_nm,
+               p.archive_status, p.storage_key, p.storage_backend, p.file_name
+        FROM tbl_sec_reports r
+        LEFT JOIN tbl_sec_reports_pdf_archive p ON p.report_id = r.report_id
+        WHERE r.report_id = ANY(%s)
+        ORDER BY r.report_id
+        """,
+        [report_ids],
+    )
+    row_by_id = {int(row["report_id"]): row for row in rows}
+    missing = [
+        {"report_id": report_id, "reason": "not_archived"}
+        for report_id in report_ids
+        if report_id not in row_by_id
+        or row_by_id[report_id].get("archive_status") != "ARCHIVED"
+        or not row_by_id[report_id].get("storage_key")
+        or (row_by_id[report_id].get("storage_backend") and row_by_id[report_id].get("storage_backend") != "googledrive")
+    ]
+
+    temp_dir = Path(tempfile.mkdtemp(prefix="ssh-report-bundle-"))
+    zip_path = temp_dir / "reports.zip"
+    included = []
+    used_names = set()
+
+    try:
+        with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+            for report_id in report_ids:
+                row = row_by_id.get(report_id)
+                if not row or any(item["report_id"] == report_id for item in missing):
+                    continue
+                try:
+                    local_file = await asyncio.to_thread(
+                        _download_archive_file,
+                        row["storage_key"],
+                        row.get("file_name") or f"report-{report_id}.pdf",
+                    )
+                    name = _bundle_file_name(row.get("file_name"), report_id)
+                    stem, suffix = Path(name).stem, Path(name).suffix
+                    candidate = name
+                    counter = 2
+                    while candidate in used_names:
+                        candidate = f"{stem}-{counter}{suffix}"
+                        counter += 1
+                    used_names.add(candidate)
+                    bundle.write(local_file, arcname=candidate)
+                    included.append({"report_id": report_id, "file_name": candidate})
+                    _remove_download_temp_file(local_file)
+                except Exception as exc:
+                    missing.append({"report_id": report_id, "reason": "archive_unavailable"})
+                    # The bundle should still deliver successfully archived files.
+                    _ = exc
+
+            bundle.writestr("manifest.json", json.dumps({
+                "requested_report_ids": report_ids,
+                "included": included,
+                "missing": missing,
+            }, ensure_ascii=False, indent=2))
+    except Exception:
+        _remove_bundle_temp_file(zip_path)
+        raise
+
+    if not included:
+        _remove_bundle_temp_file(zip_path)
+        raise HTTPException(status_code=404, detail={"message": "No archived PDFs available", "missing": missing})
+
+    return FileResponse(
+        zip_path,
+        media_type="application/zip",
+        filename="ssh-reports-archive.zip",
+        background=BackgroundTask(_remove_bundle_temp_file, zip_path),
+    )
 
 
 def _sent_report_filter():
