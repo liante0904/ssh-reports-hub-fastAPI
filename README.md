@@ -2,7 +2,7 @@
 
 증권사 리포트 수집 및 배포 플랫폼의 고성능 API 서비스 백엔드 엔진입니다.
 
-## 🚀 주요 기능 및 변경사항 (2026-07-01 업데이트)
+## 🚀 주요 기능 및 변경사항 (2026-08-24 문서 기준)
 
 ### 1. 성능 최적화: ORM → Raw SQL 전면 전환
 - API 응답 속도 및 동시 처리량 향상을 위해 기존 SQLAlchemy ORM 방식의 목록 조회 및 다중 JOIN 쿼리를 **psycopg2 기반의 동적 Raw SQL 실행 방식**으로 전면 마이그레이션 완료하였습니다.
@@ -12,6 +12,7 @@
 - **Reports Router Prefix**: 기존 `/reports` 였던 prefix가 `/external/api` 로 통일 변경되어 통합 및 관리가 용이해졌습니다.
 - **최근 리포트 전용 엔드포인트 `/recent`**: 무겁고 복합 필터가 들어가는 통합 `/search` API 대신, 성능 최적화된 `/recent` 엔드포인트를 신설하여 프론트엔드 홈 대시보드 로딩 속도를 향상시켰습니다.
 - **`key` 필드 Deprecation**: 기존 `key` 컬럼 데이터의 쓰기 및 가공이 전면 중단됨에 따라, Pydantic Schema 수준에서 `Field(deprecated=True)` 처리하고 canonical 식별자인 `report_unique_key` 로 완전히 이행하였습니다.
+- **아카이브 PDF 다운로드**: `/external/api/reports/{report_id}/archive-download`가 저장소 metadata를 확인한 뒤 아카이브 PDF를 스트리밍합니다. 프론트엔드의 다운로드 진행 표시와 별도 계약으로 관리합니다.
 
 ## 🛠️ 개발 및 테스트 실행
 
