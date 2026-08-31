@@ -20,6 +20,7 @@ from ..models import SecReport, SecFirmInfo, SecBoardInfo
 from ..schemas import ArchiveBundleRequest, CompanyResponse, BoardResponse, SecReportResponse
 from ..services import archive_files as _archive_files
 from ..services import report_query as _report_query
+from ..services import raw_query as _raw_query
 
 # External API 라우터 — 프론트엔드가 직접 호출하는 공개 API
 router = APIRouter(prefix="/external/api", tags=["external-api"])
@@ -178,24 +179,7 @@ async def download_archived_pdf(report_id: int, db: Session = Depends(get_report
     )
 
 def _execute_raw_psycopg2_query(db: Session, sql_str: str, params: list = None) -> list:
-    if params is None:
-        params = []
-    
-    dialect_name = db.get_bind().dialect.name
-    if dialect_name != "postgresql":
-        sql_str = sql_str.replace("%s", "?")
-        
-    conn = db.get_bind().raw_connection()
-    try:
-        cursor = conn.cursor()
-        cursor.execute(sql_str, params)
-        colnames = [desc[0] for desc in cursor.description]
-        rows = []
-        for row in cursor.fetchall():
-            rows.append(dict(zip(colnames, row)))
-        return rows
-    finally:
-        conn.close()
+    return _raw_query.execute_raw_query(db, sql_str, params)
 
 
 @router.get("/companies", response_model=list[CompanyResponse], summary="증권사 정보 목록 조회 (리포트 존재 기준)")
@@ -686,18 +670,8 @@ async def get_recent_reports(
 
 
 def _parse_json_field(v) -> list:
-    import json
-    if v is None:
-        return []
-    if isinstance(v, list):
-        return v
-    if isinstance(v, str):
-        try:
-            parsed = json.loads(v)
-            return parsed if isinstance(parsed, list) else []
-        except (json.JSONDecodeError, TypeError):
-            return []
-    return []
+    from ..services.report_response import parse_json_field
+    return parse_json_field(v)
 
 # ---------------------------------------------------------------------------
 # Internal 캐시 무효화 Webhook — 스크래퍼가 새 데이터 insert 후 호출
