@@ -12,12 +12,13 @@ def resolve_log_path(sub_path: str | None, log_dir: Path) -> Path:
 
 
 def format_size(size_bytes: int) -> str:
-    size = float(size_bytes)
-    for unit in ('B', 'KB', 'MB', 'GB'):
-        if size < 1024 or unit == 'GB':
-            return f'{size:.1f} {unit}' if unit != 'B' else f'{int(size)} B'
-        size /= 1024
-    return f'{size:.1f} GB'
+    if size_bytes < 1024:
+        return f'{size_bytes} B'
+    if size_bytes < 1024 ** 2:
+        return f'{size_bytes / 1024:.1f} KB'
+    if size_bytes < 1024 ** 3:
+        return f'{size_bytes / (1024 ** 2):.1f} MB'
+    return f'{size_bytes / (1024 ** 3):.2f} GB'
 
 
 def format_mtime(mtime: float) -> str:
