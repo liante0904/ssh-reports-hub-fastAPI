@@ -8,6 +8,45 @@ BASE_SELECT_SQL = """
 """
 
 
+def build_report_list_query(
+    q=None, writer=None, company=None, board=None, has_summary=None,
+    tag=None, sector=None, stock=None, limit=50, offset=0, is_postgres=True,
+) -> tuple[str, list]:
+    placeholder = "%s" if is_postgres else "?"
+    source = "v_reports_api" if is_postgres else "tbl_sec_reports"
+    like_op = "ILIKE" if is_postgres else "LIKE"
+    clauses = []
+    params = []
+    for value, column in ((q, "article_title"), (writer, "writer")):
+        if value:
+            clauses.append(f"r.{column} {like_op} {placeholder}")
+            params.append(f"%{value}%")
+    if company is not None:
+        clauses.append(f"r.firm_id = {placeholder}")
+        params.append(company)
+    if board is not None:
+        clauses.append(f"r.board_id = {placeholder}")
+        params.append(board)
+    if has_summary:
+        clauses.append("r.gemini_summary IS NOT NULL AND r.gemini_summary NOT IN ('',' ')")
+    if tag:
+        clauses.append(f"r.tags {like_op} {placeholder}")
+        params.append(f'%"{tag}"%')
+    if sector:
+        clauses.append(f"r.sector {like_op} {placeholder}")
+        params.append(f"%{sector}%")
+    if stock:
+        clauses.append(f"r.stock_names {like_op} {placeholder}")
+        params.append(f'%"{stock}"%')
+    where = "WHERE " + " AND ".join(clauses) if clauses else ""
+    sql = (
+        f"SELECT * FROM {source} r {where} "
+        f"ORDER BY r.report_date DESC, r.report_id DESC "
+        f"LIMIT {placeholder} OFFSET {placeholder}"
+    )
+    return sql, params + [limit, offset]
+
+
 def base_select_sql(db) -> str:
     return BASE_SELECT_SQL if db.get_bind().dialect.name == "postgresql" else "SELECT * FROM tbl_sec_reports r"
 

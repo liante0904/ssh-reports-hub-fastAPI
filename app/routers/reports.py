@@ -7,6 +7,7 @@ from ..dependencies import get_user_from_token
 from ..database import get_reports_db
 from ..models import SecReport, User
 from ..schemas import SecReportResponse, ReportNotificationResponse, ReportSentHistoryResponse
+from ..services.report_query import build_report_list_query
 
 router = APIRouter(prefix="/external/api", tags=["reports"])
 
@@ -26,31 +27,11 @@ async def get_reports(
     offset: Annotated[int, Query(ge=0)] = 0,
     db: Session = Depends(get_reports_db),
 ):
-    clauses, params = [], []
     is_pg = db.get_bind().dialect.name == "postgresql"
-    _from = "v_reports_api" if is_pg else "tbl_sec_reports"
-    placeholder = "%s" if is_pg else "?"
-    like_op = "ILIKE" if is_pg else "LIKE"
-    if q:
-        clauses.append(f"r.article_title {like_op} {placeholder}"); params.append(f"%{q}%")
-    if writer:
-        clauses.append(f"r.writer {like_op} {placeholder}"); params.append(f"%{writer}%")
-    if company is not None:
-        clauses.append(f"r.firm_id = {placeholder}"); params.append(company)
-    if board is not None:
-        clauses.append(f"r.board_id = {placeholder}"); params.append(board)
-    if has_summary:
-        clauses.append("r.gemini_summary IS NOT NULL AND r.gemini_summary NOT IN ('',' ')")
-    if tag:
-        clauses.append(f"r.tags {like_op} {placeholder}"); params.append(f'%"{tag}"%')
-    if sector:
-        clauses.append(f"r.sector {like_op} {placeholder}"); params.append(f"%{sector}%")
-    if stock:
-        clauses.append(f"r.stock_names {like_op} {placeholder}"); params.append(f'%"{stock}"%')
-
-    where = "WHERE " + " AND ".join(clauses) if clauses else ""
-    sql = f"SELECT * FROM {_from} r {where} ORDER BY r.report_date DESC, r.report_id DESC LIMIT {placeholder} OFFSET {placeholder}"
-    params.extend([limit, offset])
+    sql, params = build_report_list_query(
+        q, writer, company, board, has_summary, tag, sector, stock,
+        limit, offset, is_pg,
+    )
 
     from ..routers.external_api import _view_row_to_api_item
     conn = db.get_bind().raw_connection()
