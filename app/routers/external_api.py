@@ -1,11 +1,10 @@
 import asyncio
 import json
 import os
-import shutil
 import subprocess
 import tempfile
 import zipfile
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Annotated, Optional
 from datetime import datetime
 
@@ -19,6 +18,7 @@ from ..cache import cache_response, invalidate_prefix
 from ..database import get_reports_db
 from ..models import SecReport, SecFirmInfo, SecBoardInfo
 from ..schemas import ArchiveBundleRequest, CompanyResponse, BoardResponse, SecReportResponse
+from ..services import archive_files as _archive_files
 from ..services import report_query as _report_query
 
 # External API 라우터 — 프론트엔드가 직접 호출하는 공개 API
@@ -26,62 +26,23 @@ router = APIRouter(prefix="/external/api", tags=["external-api"])
 
 
 def _archive_remote_path(storage_key: str) -> str:
-    """Return a confined rclone remote path for a DB-provided archive key."""
-    raw_key = str(storage_key or "").replace("\\", "/").strip()
-    if raw_key.startswith("/"):
-        raise ValueError("invalid archive storage key")
-    key = raw_key.strip("/")
-    path = PurePosixPath(key)
-    if not key or path.is_absolute() or ".." in path.parts:
-        raise ValueError("invalid archive storage key")
-    remote = os.getenv("PDF_ARCHIVE_RCLONE_REMOTE", "gdrive:archive/pdf").rstrip("/")
-    return f"{remote}/{path.as_posix()}"
+    return _archive_files.archive_remote_path(storage_key)
 
 
 def _download_archive_file(storage_key: str, file_name: str) -> Path:
-    """Copy a single Drive archive object to an isolated temporary file."""
-    rclone_bin = os.getenv("PDF_ARCHIVE_RCLONE_BIN") or shutil.which("rclone")
-    if not rclone_bin:
-        raise RuntimeError("archive downloader is not configured")
-
-    temp_dir = Path(tempfile.mkdtemp(prefix="ssh-report-archive-"))
-    target = temp_dir / (Path(file_name or "report.pdf").name or "report.pdf")
-    command = [rclone_bin]
-    rclone_config = os.getenv("PDF_ARCHIVE_RCLONE_CONFIG")
-    if rclone_config:
-        command.extend(["--config", rclone_config])
-    command.extend(["copyto", _archive_remote_path(storage_key), str(target)])
-
-    try:
-        completed = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            timeout=int(os.getenv("PDF_ARCHIVE_DOWNLOAD_TIMEOUT_SECONDS", "45")),
-            check=False,
-        )
-    except Exception:
-        shutil.rmtree(temp_dir, ignore_errors=True)
-        raise
-
-    if completed.returncode != 0 or not target.is_file() or target.stat().st_size == 0:
-        shutil.rmtree(temp_dir, ignore_errors=True)
-        raise RuntimeError("archived PDF is unavailable")
-    return target
+    return _archive_files.download_archive_file(storage_key, file_name)
 
 
 def _remove_download_temp_file(path: Path) -> None:
-    shutil.rmtree(path.parent, ignore_errors=True)
+    _archive_files.remove_download_temp_file(path)
 
 
 def _bundle_file_name(file_name: str, report_id: int) -> str:
-    """Keep archive entry names flat and safe inside a user ZIP."""
-    name = Path(file_name or f"report-{report_id}.pdf").name
-    return name or f"report-{report_id}.pdf"
+    return _archive_files.bundle_file_name(file_name, report_id)
 
 
 def _remove_bundle_temp_file(path: Path) -> None:
-    shutil.rmtree(path.parent, ignore_errors=True)
+    _archive_files.remove_bundle_temp_file(path)
 
 
 @router.post("/reports/archive-bundle", summary="아카이브 PDF 묶음 다운로드")
@@ -235,16 +196,6 @@ def _execute_raw_psycopg2_query(db: Session, sql_str: str, params: list = None) 
         return rows
     finally:
         conn.close()
-
-
-# Compatibility names: route code and existing tests keep their established imports.
-from ..services.archive_files import (
-    archive_remote_path as _archive_remote_path,
-    download_archive_file as _download_archive_file,
-    remove_download_temp_file as _remove_download_temp_file,
-    bundle_file_name as _bundle_file_name,
-    remove_bundle_temp_file as _remove_bundle_temp_file,
-)
 
 
 @router.get("/companies", response_model=list[CompanyResponse], summary="증권사 정보 목록 조회 (리포트 존재 기준)")
