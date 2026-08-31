@@ -31,6 +31,7 @@ from ..exceptions import (
 )
 from ..models import MAIN_TABLE_NAME, SecReport, User
 from ..settings import Settings
+from ..services import admin_log_utils as _admin_log_utils
 
 logger = logging.getLogger("app.admin")
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -551,49 +552,24 @@ async def trigger_fnguide_match_internal(
 #  로그 브라우저 (/admin/logs, /admin/logs/view)
 # ──────────────────────────────────────────────
 
-_LOG_DESCRIPTIONS: dict[str, str] = {
-    "fix_ls_db": "LS DB Fix 로그",
-    "fix_dbfi_urls": "DB Fi URL Fix 로그",
-    "scheduler": "스케줄러 실행 로그",
-    "scraper_background": "스크래퍼 백그라운드 로그",
-    "output": "스크래퍼 출력 로그",
-    "ls_fix_background": "LS Fix 백그라운드 로그",
-}
-
-
 def _resolve_log_path(sub_path: str | None, log_dir: Path) -> Path:
-    """로그 디렉토리 내 경로를 안전하게 resolve (path traversal 방지)."""
-    if sub_path:
-        requested = (log_dir / sub_path).resolve()
-        if not str(requested).startswith(str(log_dir) + "/") and str(requested) != str(log_dir):
-            raise PermissionDeniedException("Access denied: path traversal detected")
-        return requested
-    return log_dir
+    return _admin_log_utils.resolve_log_path(sub_path, log_dir)
 
 
 def _format_size(size_bytes: int) -> str:
-    if size_bytes < 1024:
-        return f"{size_bytes} B"
-    elif size_bytes < 1024 ** 2:
-        return f"{size_bytes / 1024:.1f} KB"
-    elif size_bytes < 1024 ** 3:
-        return f"{size_bytes / (1024 ** 2):.1f} MB"
-    return f"{size_bytes / (1024 ** 3):.2f} GB"
+    return _admin_log_utils.format_size(size_bytes)
 
 
 def _format_mtime(mtime: float) -> str:
-    return datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M")
+    return _admin_log_utils.format_mtime(mtime)
 
 
 def _get_description(name: str) -> str | None:
-    for pattern, desc in _LOG_DESCRIPTIONS.items():
-        if pattern in name:
-            return desc
-    return None
+    return _admin_log_utils.get_description(name)
 
 
 def _is_archived(name: str) -> bool:
-    return any(name.endswith(suffix) for suffix in (".gz", ".zip", ".bz2", ".tar", ".xz"))
+    return _admin_log_utils.is_archived(name)
 
 
 @router.get("/logs")
@@ -684,6 +660,4 @@ async def view_log_file(
         raise ValidationException("File is not a readable text file")
     except OSError as e:
         raise ServiceUnavailableException(f"Failed to read file: {e}")
-
-
 
