@@ -19,6 +19,7 @@ from ..cache import cache_response, invalidate_prefix
 from ..database import get_reports_db
 from ..models import SecReport, SecFirmInfo, SecBoardInfo
 from ..schemas import ArchiveBundleRequest, CompanyResponse, BoardResponse, SecReportResponse
+from ..services import report_query as _report_query
 
 # External API 라우터 — 프론트엔드가 직접 호출하는 공개 API
 router = APIRouter(prefix="/external/api", tags=["external-api"])
@@ -347,15 +348,8 @@ INDUSTRY_REPORT_BOARD_FILTERS = (
 
 
 
-BASE_SELECT_SQL = """
-    SELECT * FROM v_reports_api r
-"""
-
-
 def _base_select_sql(db: Session) -> str:
-    if db.get_bind().dialect.name == "postgresql":
-        return BASE_SELECT_SQL
-    return "SELECT * FROM tbl_sec_reports r"
+    return _report_query.base_select_sql(db)
 
 _VIEW_TO_API_KEY_MAP = {
     "firm_id": "firm_id", "board_id": "board_id",
@@ -447,91 +441,22 @@ def _build_where_clauses(
     stock: Optional[str] = None,
     is_postgres: bool = True,
 ) -> tuple[list[str], list]:
-    like_op = "ILIKE" if is_postgres else "LIKE"
-    clauses = []
-    params = []
-    if writer:
-        clauses.append(f"r.writer {like_op} %s")
-        params.append(f"%{writer}%")
-    if title:
-        normalized_title = " ".join(title.lower().split())
-        # Shinhan publishes the same monthly overseas Top Picks series with
-        # both Korean ("탑픽 10선") and English ("Top Picks") titles.
-        if "해외주식" in normalized_title and (
-            "탑픽" in normalized_title or "top pick" in normalized_title
-        ):
-            clauses.append(
-                f"(r.article_title {like_op} %s OR r.article_title {like_op} %s)"
-            )
-            params.extend(["%해외주식%탑픽%", "%해외주식%Top Pick%"])
-        else:
-            clauses.append(f"r.article_title {like_op} %s")
-            params.append(f"%{title}%")
-    if mkt_tp == "global":
-        clauses.append("r.mkt_tp != 'KR'")
-    elif mkt_tp == "domestic":
-        clauses.append("r.mkt_tp = 'KR'")
-    if company is not None:
-        clauses.append("r.firm_id = %s")
-        params.append(company)
-    if board is not None:
-        clauses.append("r.board_id = %s")
-        params.append(board)
-    if tag:
-        clauses.append(f"r.tags {like_op} %s")
-        params.append(f'%"{tag}"%')
-    if sector:
-        clauses.append(f"r.sector {like_op} %s")
-        params.append(f"%{sector}%")
-    if stock:
-        clauses.append(f"r.stock_names {like_op} %s")
-        params.append(f'%"{stock}"%')
-    return clauses, params
+    return _report_query.build_where_clauses(
+        writer, title, mkt_tp, company, board, tag, sector, stock, is_postgres
+    )
 
 
 def _build_outlook_clauses(
     outlook_year: Optional[int],
     is_postgres: bool = True,
 ) -> tuple[list[str], list]:
-    like_op = "ILIKE" if is_postgres else "LIKE"
-    clauses = [f"r.article_title {like_op} %s"]
-    params = ["%전망%"]
-
-    if is_postgres:
-        clauses.extend(
-            [
-                (
-                    "r.article_title ~* "
-                    "'하반기|상반기|연간|[0-9]{4}년|[0-9]H[0-9]{2}|전망포럼|"
-                    "(경제|금융시장|주식시장|시장)[[:space:]]*전망|"
-                    "(업종|산업)[[:space:]]*전망'"
-                ),
-                "r.article_title !~* '\\([0-9]{5,6}'",
-                "r.article_title !~* '\\[[0-9]{5,6}/'",
-                "r.article_title !~* '\\[[^\\]]+/(매수|매도|중립|시장수익률|Buy|Hold|Sell|Neutral|Outperform|Underperform|Not[[:space:]]*Rated|Trading[[:space:]]*Buy)'",
-                "r.article_title !~* '목표주가'",
-            ]
-        )
-
-    if outlook_year:
-        clauses.append(f"r.article_title {like_op} %s")
-        params.append(f"%{outlook_year}년%")
-
-    return clauses, params
+    return _report_query.build_outlook_clauses(outlook_year, is_postgres)
 
 
 def _paginate_query(query_or_sql, limit: int, offset: int, db: Session = None, params: list = None) -> tuple[list, bool]:
-    if not isinstance(query_or_sql, str):
-        rows = query_or_sql.offset(offset).limit(limit + 1).all()
-        return rows[:limit], len(rows) > limit
-
-    sql = f"{query_or_sql} LIMIT %s OFFSET %s"
-    if params is None:
-        params = []
-    
-    extended_params = list(params) + [limit + 1, offset]
-    results = _execute_raw_psycopg2_query(db, sql, extended_params)
-    return results[:limit], len(results) > limit
+    return _report_query.paginate_query(
+        query_or_sql, limit, offset, db, params, _execute_raw_psycopg2_query
+    )
 
 
 @router.get("/industry", summary="산업별 리포트 조회 (Public API)")
