@@ -236,6 +236,16 @@ def _execute_raw_psycopg2_query(db: Session, sql_str: str, params: list = None) 
         conn.close()
 
 
+# Compatibility names: route code and existing tests keep their established imports.
+from ..services.archive_files import (
+    archive_remote_path as _archive_remote_path,
+    download_archive_file as _download_archive_file,
+    remove_download_temp_file as _remove_download_temp_file,
+    bundle_file_name as _bundle_file_name,
+    remove_bundle_temp_file as _remove_bundle_temp_file,
+)
+
+
 @router.get("/companies", response_model=list[CompanyResponse], summary="증권사 정보 목록 조회 (리포트 존재 기준)")
 @cache_response(ttl=1800, prefix="api")  # 30분 캐시 (증권사 목록은 거의 변하지 않음)
 async def get_companies(request: Request, db: Session = Depends(get_reports_db)):
@@ -902,3 +912,11 @@ async def get_ls_existing_keys(
         }
     finally:
         conn.close()
+
+
+# Keep router-level names stable while response normalization lives in a pure service.
+from ..services.report_response import (
+    view_row_to_api_item as _view_row_to_api_item,
+    collection_response as _collection_response,
+    parse_json_field as _parse_json_field,
+)

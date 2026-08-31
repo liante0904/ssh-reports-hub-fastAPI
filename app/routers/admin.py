@@ -686,4 +686,12 @@ async def view_log_file(
         raise ServiceUnavailableException(f"Failed to read file: {e}")
 
 
+# Keep router-level imports stable while the pure log helpers live in services.
+from ..services.admin_log_utils import (
+    resolve_log_path as _resolve_log_path,
+    format_size as _format_size,
+    format_mtime as _format_mtime,
+    get_description as _get_description,
+    is_archived as _is_archived,
+)
 
