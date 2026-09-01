@@ -17,8 +17,7 @@ services:
       - /home/ubuntu/workspace/external.reports-hub/apps/scrapers/ssh-report-summary-worker:/opt/summary-worker:ro
       - /home/ubuntu/secrets/workspace/external.reports-hub/apps/scrapers/ssh-report-summary-worker/secrets.json:/opt/summary-worker-secrets/secrets.json:ro
       - /home/ubuntu/.local/bin/agy:/opt/agy/agy:ro
-      - /home/ubuntu/.gemini/antigravity-cli/antigravity-oauth-token:/tmp/.gemini/antigravity-cli/antigravity-oauth-token:ro
-      - /home/ubuntu/.gemini/oauth_creds.json:/tmp/.gemini/oauth_creds.json:ro
+      - /home/ubuntu/.gemini:/tmp/.gemini:rw
       - /home/ubuntu/.config/rclone/rclone.conf:/etc/rclone/rclone.conf:ro
       - /home/ubuntu/legacy/telegram-stock-info-bot/send:/screening_files:ro
       - /home/ubuntu/workspace/external.reports-hub/apps/backend/ssh-reports-hub-fastAPI/logs:/logs/scraper:ro
@@ -63,8 +62,7 @@ services:
       - /home/ubuntu/workspace/external.reports-hub/apps/scrapers/ssh-report-summary-worker:/opt/summary-worker:ro
       - /home/ubuntu/secrets/workspace/external.reports-hub/apps/scrapers/ssh-report-summary-worker/secrets.json:/opt/summary-worker-secrets/secrets.json:ro
       - /home/ubuntu/.local/bin/agy:/opt/agy/agy:ro
-      - /home/ubuntu/.gemini/antigravity-cli/antigravity-oauth-token:/tmp/.gemini/antigravity-cli/antigravity-oauth-token:ro
-      - /home/ubuntu/.gemini/oauth_creds.json:/tmp/.gemini/oauth_creds.json:ro
+      - /home/ubuntu/.gemini:/tmp/.gemini:rw
       - /home/ubuntu/.config/rclone/rclone.conf:/etc/rclone/rclone.conf:ro
       - /home/ubuntu/legacy/telegram-stock-info-bot/send:/screening_files:ro
       - /home/ubuntu/workspace/external.reports-hub/apps/backend/ssh-reports-hub-fastAPI/logs:/logs/scraper:ro
