@@ -195,13 +195,13 @@ async def test_trigger_summarize_deepseek_success(mock_summarize, admin_client):
 
 
 @pytest.mark.anyio
-@patch("ssh_library.antigravity_manager.AntigravityManager.summarize", new_callable=AsyncMock)
-async def test_trigger_summarize_antigravity_success(mock_summarize, admin_client):
-    """Antigravity (Gemini) 엔진을 사용하여 요약을 정상 수행 및 DB 반영 검증"""
-    mock_summarize.return_value = {
-        "status": "success",
-        "summary": "Antigravity가 요약한 초전도 반도체 상승 포탈 시나리오",
-        "model": "gemini-2.5-flash",
+@patch("app.routers.admin.run_summary_worker", new_callable=AsyncMock)
+async def test_trigger_summarize_antigravity_success(mock_worker, admin_client):
+    """AGY worker bridge success is returned through the legacy frontend route."""
+    mock_worker.return_value = {
+        "status": "saved",
+        "summary": "AGY가 요약한 초전도 반도체 상승 포탈 시나리오",
+        "model": "Gemini 3.7 Flash",
     }
 
     response = await admin_client.post("/admin/reports/200/summarize?engine=ag")
@@ -210,15 +210,11 @@ async def test_trigger_summarize_antigravity_success(mock_summarize, admin_clien
     data = response.json()
     assert data["report_id"] == 200
     assert data["status"] == "success"
-    assert data["summary"] == "Antigravity가 요약한 초전도 반도체 상승 포탈 시나리오"
-    assert data["summary_model"] == "gemini-2.5-flash"
+    assert data["summary"] == "AGY가 요약한 초전도 반도체 상승 포탈 시나리오"
+    assert data["summary_model"] == "Gemini 3.7 Flash"
+    mock_worker.assert_awaited_once_with(200, force=False)
 
-    # DB에 정상 업데이트되었는지 직접 조회 확인
-    db = TestingSessionLocal()
-    report = db.query(SecReport).filter(SecReport.report_id == 200).first()
-    assert report.gemini_summary == "Antigravity가 요약한 초전도 반도체 상승 포탈 시나리오"
-    assert report.summary_model == "gemini-2.5-flash"
-    db.close()
+    # DB update is owned by the worker process; this route test verifies the bridge.
 
 
 @pytest.mark.anyio

@@ -32,6 +32,7 @@ from ..exceptions import (
 from ..models import MAIN_TABLE_NAME, SecReport, User
 from ..settings import Settings
 from ..services import admin_log_utils as _admin_log_utils
+from ..services.summary_worker import SummaryWorkerError, run_summary_worker
 
 logger = logging.getLogger("app.admin")
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -143,6 +144,22 @@ async def trigger_summarize(
     pdf_url = report.pdf_file_url or report.telegram_url or ""
     if not pdf_url:
         raise ValidationException("No PDF URL available for this report")
+
+    # AGY execution is owned by ssh-report-summary-worker. Keep this existing
+    # frontend-compatible route, but pass only report_id; the worker reads the
+    # complete row and its report_unique_key from PostgreSQL.
+    if engine == "ag":
+        try:
+            item = await run_summary_worker(report_id, force=force)
+        except SummaryWorkerError as exc:
+            logger.exception("summary worker failed for report_id=%s", report_id)
+            return {"report_id": report_id, "status": "error", "error": str(exc)}
+        return {
+            "report_id": report_id,
+            "status": "success" if item.get("status") == "saved" else item.get("status"),
+            "summary": item.get("summary"),
+            "summary_model": item.get("model"),
+        }
 
     # 요약 엔진 분기 처리
     if engine == "ag":
@@ -660,4 +677,3 @@ async def view_log_file(
         raise ValidationException("File is not a readable text file")
     except OSError as e:
         raise ServiceUnavailableException(f"Failed to read file: {e}")
-
