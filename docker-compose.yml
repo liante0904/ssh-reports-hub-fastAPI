@@ -33,6 +33,7 @@ services:
       - SUMMARY_WORKER_ROOT=/opt/summary-worker
       - SUMMARY_SECRET_FILE=/opt/summary-worker-secrets/secrets.json
       - AGY_COMMAND=/opt/agy/agy
+      - AGY_LOG_FILE=/tmp/agy-summary-worker.log
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_DB=${REDIS_DB:-0}
@@ -78,6 +79,7 @@ services:
       - SUMMARY_WORKER_ROOT=/opt/summary-worker
       - SUMMARY_SECRET_FILE=/opt/summary-worker-secrets/secrets.json
       - AGY_COMMAND=/opt/agy/agy
+      - AGY_LOG_FILE=/tmp/agy-summary-worker.log
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_DB=${REDIS_DB:-0}
