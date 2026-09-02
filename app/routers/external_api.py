@@ -489,7 +489,7 @@ async def get_global_reports(
         clauses.append("r.article_title !~* '\\(\\d{5,6}\\.K[QS]\\)'")
         clauses.append("r.article_title !~* '\\([^)]+\\.K[QS][^)]*\\)'")   # (214150.KQ/매수) 등 변형
         clauses.append("r.article_title !~* '\\b\\d{5,6}\\b'")
-        clauses.append("r.article_title !~* '코스피|코스닥|KOSPI|KOSDAQ|퀀트|Quant|MP'")
+        clauses.append("r.article_title !~* '코스피|코스닥|KOSPI|KOSDAQ|퀀트|Quant'")
         
     if report_id is not None:
         clauses.append("r.report_id = %s")
