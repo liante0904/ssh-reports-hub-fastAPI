@@ -478,19 +478,13 @@ async def get_global_reports(
 ):
     """
     글로벌(해외주식/글로벌 시장) 관련 리포트 목록을 독립적으로 조회합니다.
-    국내 종목코드나 국내 시장 관련 키워드가 제목에 포함된 리포트는 제외됩니다.
+    시장 분류는 저장된 mkt_tp 값을 기준으로 조회합니다.
     """
     is_postgres = (db.get_bind().dialect.name == "postgresql")
     
     clauses = ["r.telegram_sent = TRUE", "r.mkt_tp != 'KR'"]
     params = []
     
-    if is_postgres:
-        clauses.append("r.article_title !~* '\\(\\d{5,6}\\.K[QS]\\)'")
-        clauses.append("r.article_title !~* '\\([^)]+\\.K[QS][^)]*\\)'")   # (214150.KQ/매수) 등 변형
-        clauses.append("r.article_title !~* '\\b\\d{5,6}\\b'")
-        clauses.append("r.article_title !~* '코스피|코스닥|KOSPI|KOSDAQ|퀀트|Quant'")
-        
     if report_id is not None:
         clauses.append("r.report_id = %s")
         params.append(report_id)
