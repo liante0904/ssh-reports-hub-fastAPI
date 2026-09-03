@@ -39,6 +39,21 @@ class ArchiveBundleRequest(BaseModel):
     report_ids: List[int] = Field(min_length=1, max_length=50)
 
 
+class ShareLinkCreateRequest(BaseModel):
+    report_id: int = Field(ge=1)
+
+
+class ShareLinkResponse(BaseModel):
+    token: str
+    report_id: int
+    expires_at: datetime
+
+
+class ShareLinkResolveResponse(BaseModel):
+    token: str
+    report_id: int
+
+
 class FnGuideMatchedReportResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     report_id: int
