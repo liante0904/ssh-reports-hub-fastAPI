@@ -87,6 +87,41 @@ def decode_access_token(token: str, settings: Settings) -> dict:
     return payload
 
 
+def create_share_token(report_id: int, settings: Settings) -> tuple[str, datetime]:
+    secret = settings.share_token_secret
+    if len(secret) < 32:
+        raise ServiceUnavailableException("Share link secret is not configured")
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(days=settings.share_link_expire_days)
+    payload = {
+        "rid": str(report_id),
+        "type": "share",
+        "iat": int(now.timestamp()),
+        "exp": int(expires_at.timestamp()),
+    }
+    return jwt.encode(payload, secret, algorithm=settings.jwt_algorithm), expires_at
+
+
+def decode_share_token(token: str, settings: Settings) -> int:
+    secret = settings.share_token_secret
+    if len(secret) < 32:
+        raise ServiceUnavailableException("Share link secret is not configured")
+    try:
+        payload = jwt.decode(token, secret, algorithms=[settings.jwt_algorithm])
+    except JWTError as exc:
+        raise AuthenticationException("Invalid or expired share link") from exc
+
+    if payload.get("type") != "share" or not payload.get("rid"):
+        raise AuthenticationException("Invalid share link")
+    try:
+        report_id = int(payload["rid"])
+    except (TypeError, ValueError) as exc:
+        raise AuthenticationException("Invalid share link") from exc
+    if report_id < 1:
+        raise AuthenticationException("Invalid share link")
+    return report_id
+
+
 def verify_telegram_data(data: dict, settings: Settings) -> tuple[bool, str]:
     bot_token = settings.clean_telegram_bot_token
     if not bot_token:

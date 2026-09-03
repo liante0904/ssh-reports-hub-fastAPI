@@ -142,6 +142,37 @@ async def test_health_check(client):
     assert response.json() == {"status": "ok"}
 
 
+@pytest.mark.anyio
+async def test_share_link_can_be_resolved_without_authentication(client):
+    """공유 수신자는 로그인 없이 서버 서명 토큰을 사용할 수 있다."""
+    created = await client.post("/external/api/share-links", json={"report_id": 1})
+    assert created.status_code == 200
+    payload = created.json()
+    assert payload["report_id"] == 1
+    assert payload["token"]
+    assert payload["expires_at"]
+
+    resolved = await client.get(f"/external/api/share-links/{payload['token']}")
+    assert resolved.status_code == 200
+    assert resolved.json() == {"token": payload["token"], "report_id": 1}
+
+
+@pytest.mark.anyio
+async def test_share_link_rejects_tampered_token(client):
+    created = await client.post("/external/api/share-links", json={"report_id": 1})
+    token = created.json()["token"]
+    tampered = f"{token[:-1]}{'a' if token[-1] != 'a' else 'b'}"
+
+    response = await client.get(f"/external/api/share-links/{tampered}")
+    assert response.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_share_link_rejects_unknown_report(client):
+    response = await client.post("/external/api/share-links", json={"report_id": 999999999})
+    assert response.status_code == 404
+
+
 # ──────────────────────────────────────────────
 # /reports (Pydantic 직렬화)
 # ──────────────────────────────────────────────

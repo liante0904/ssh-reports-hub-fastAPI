@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     app_env: str = "prod"
     jwt_secret_key: str = ""
     jwt_algorithm: str = "HS256"
+    share_link_secret: str = ""
+    share_link_expire_days: int = Field(default=30, ge=1, le=365)
     # Telegram 로그인은 별도의 refresh token 발급 흐름이 없으므로,
     # 브라우저 재방문 때 매일 재로그인하지 않도록 기본 access token을 30일 유지한다.
     # 운영 환경에서 ACCESS_TOKEN_EXPIRE_MINUTES를 지정하면 기존처럼 재정의할 수 있다.
@@ -51,6 +53,10 @@ class Settings(BaseSettings):
     @property
     def jwt_is_configured(self) -> bool:
         return len(self.jwt_secret_key) >= 32
+
+    @property
+    def share_token_secret(self) -> str:
+        return self.share_link_secret.strip() or self.jwt_secret_key
 
     @property
     def redis_url(self) -> str:

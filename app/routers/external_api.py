@@ -17,13 +17,44 @@ from sqlalchemy.orm import Session, joinedload
 from ..cache import cache_response, invalidate_prefix
 from ..database import get_reports_db
 from ..models import SecReport, SecFirmInfo, SecBoardInfo
-from ..schemas import ArchiveBundleRequest, CompanyResponse, BoardResponse, SecReportResponse
+from ..schemas import ArchiveBundleRequest, CompanyResponse, BoardResponse, SecReportResponse, ShareLinkCreateRequest, ShareLinkResponse, ShareLinkResolveResponse
+from ..security import create_share_token, decode_share_token
+from ..settings import Settings
+from ..dependencies import get_settings_dep
 from ..services import archive_files as _archive_files
 from ..services import report_query as _report_query
 from ..services import raw_query as _raw_query
 
 # External API 라우터 — 프론트엔드가 직접 호출하는 공개 API
 router = APIRouter(prefix="/external/api", tags=["external-api"])
+
+
+@router.post("/share-links", response_model=ShareLinkResponse, summary="공유 링크 토큰 발급")
+async def create_share_link(
+    payload: ShareLinkCreateRequest,
+    db: Session = Depends(get_reports_db),
+    settings: Settings = Depends(get_settings_dep),
+):
+    report = db.query(SecReport.report_id).filter(SecReport.report_id == payload.report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    token, expires_at = create_share_token(payload.report_id, settings)
+    return ShareLinkResponse(token=token, report_id=payload.report_id, expires_at=expires_at)
+
+
+@router.get("/share-links/{token}", response_model=ShareLinkResolveResponse, summary="공유 링크 토큰 검증")
+async def resolve_share_link(
+    token: str,
+    db: Session = Depends(get_reports_db),
+    settings: Settings = Depends(get_settings_dep),
+):
+    report_id = decode_share_token(token, settings)
+    report = db.query(SecReport.report_id).filter(SecReport.report_id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    return ShareLinkResolveResponse(token=token, report_id=report_id)
 
 
 def _archive_remote_path(storage_key: str) -> str:
