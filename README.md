@@ -14,6 +14,13 @@
 - **`key` 필드 Deprecation**: 기존 `key` 컬럼 데이터의 쓰기 및 가공이 전면 중단됨에 따라, Pydantic Schema 수준에서 `Field(deprecated=True)` 처리하고 canonical 식별자인 `report_unique_key` 로 완전히 이행하였습니다.
 - **아카이브 PDF 다운로드**: `/external/api/reports/{report_id}/archive-download`가 저장소 metadata를 확인한 뒤 아카이브 PDF를 스트리밍합니다. 프론트엔드의 다운로드 진행 표시와 별도 계약으로 관리합니다.
 
+### 운영 view 식별자
+
+운영 `v_sec_reports_canonical` 및 `v_sec_reports_full` view는
+`report_unique_key AS report_source_key` read-only alias를 제공합니다.
+`report_source_key`는 수집 원천 식별키이며, 물리 테이블 컬럼은 변경하지 않습니다.
+수동 운영 SQL과 인덱스 정리 기록은 `ops/sql/20260913_report_source_key_and_index_cleanup.sql`에 있습니다.
+
 ## 🛠️ 개발 및 테스트 실행
 
 ### 로컬 테스트 실행 (SQLite 샌드박스)
