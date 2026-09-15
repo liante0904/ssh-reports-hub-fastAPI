@@ -31,7 +31,9 @@ router = APIRouter(prefix="/external/api", tags=["external-api"])
 
 
 @router.post("/share-links", response_model=ShareLinkResponse, summary="공유 링크 토큰 발급")
+@limiter.limit("20/minute")
 async def create_share_link(
+    request: Request,
     payload: ShareLinkCreateRequest,
     db: Session = Depends(get_reports_db),
     settings: Settings = Depends(get_settings_dep),
@@ -45,7 +47,9 @@ async def create_share_link(
 
 
 @router.get("/share-links/{token}", response_model=ShareLinkResolveResponse, summary="공유 링크 토큰 검증")
+@limiter.limit("60/minute")
 async def resolve_share_link(
+    request: Request,
     token: str,
     db: Session = Depends(get_reports_db),
     settings: Settings = Depends(get_settings_dep),
