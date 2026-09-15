@@ -8,7 +8,8 @@ from datetime import datetime, timedelta, timezone
 UTC = timezone.utc
 
 from fastapi import Request
-from jose import JWTError, jwt
+import jwt
+from jwt import InvalidTokenError
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from .exceptions import AuthenticationException, ServiceUnavailableException
@@ -79,8 +80,8 @@ def decode_access_token(token: str, settings: Settings) -> dict:
         payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
         canonical_token = jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
         if not hmac.compare_digest(token, canonical_token):
-            raise JWTError("Non-canonical token encoding")
-    except JWTError as exc:
+            raise InvalidTokenError("Non-canonical token encoding")
+    except InvalidTokenError as exc:
         raise AuthenticationException(
             "Invalid or expired token",
         ) from exc
@@ -113,8 +114,8 @@ def decode_share_token(token: str, settings: Settings) -> int:
         payload = jwt.decode(token, secret, algorithms=[settings.jwt_algorithm])
         canonical_token = jwt.encode(payload, secret, algorithm=settings.jwt_algorithm)
         if not hmac.compare_digest(token, canonical_token):
-            raise JWTError("Non-canonical token encoding")
-    except JWTError as exc:
+            raise InvalidTokenError("Non-canonical token encoding")
+    except InvalidTokenError as exc:
         raise AuthenticationException("Invalid or expired share link") from exc
 
     if payload.get("type") != "share" or not payload.get("rid"):
