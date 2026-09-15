@@ -109,8 +109,9 @@ async def get_summary_notifications(
 async def get_send_history(
     limit: Annotated[int, Query(ge=1, le=100)] = 30,
     db: Session = Depends(get_reports_db),
+    user: User = Depends(get_user_from_token),
 ):
-    """통합 알림 내역 (텔레그램 키워드 + AI 요약)."""
+    """현재 로그인 사용자의 통합 알림 내역 (텔레그램 키워드 + AI 요약)."""
     try:
         conn = db.get_bind().raw_connection()
         cur = conn.cursor()
@@ -120,7 +121,7 @@ async def get_send_history(
         cur.execute(f"SELECT h.id, h.report_id, h.user_id, h.keyword, h.sent_at,"
                     f" r.article_title, r.firm_nm"
                     f" FROM tbl_report_send_history h LEFT JOIN tbl_sec_reports r ON h.report_id = r.report_id"
-                    f" ORDER BY h.sent_at DESC LIMIT {ph}", [limit])
+                    f" WHERE h.user_id = {ph} ORDER BY h.sent_at DESC LIMIT {ph}", [user.id, limit])
         rows = [dict(zip([d[0] for d in cur.description], row)) for row in cur.fetchall()]
         conn.close()
         return [ReportSentHistoryResponse(**r) for r in rows]
