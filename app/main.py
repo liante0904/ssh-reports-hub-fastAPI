@@ -273,6 +273,9 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
     redirect_slashes=False,
+    docs_url=None if get_settings().app_env == "prod" else "/docs",
+    redoc_url=None if get_settings().app_env == "prod" else "/redoc",
+    openapi_url=None if get_settings().app_env == "prod" else "/openapi.json",
 )
 
 app.state.limiter = limiter
