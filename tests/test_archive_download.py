@@ -6,6 +6,11 @@ import pytest
 from app.routers import external_api
 from app.routers.external_api import _archive_remote_path, _view_row_to_api_item
 from app.schemas import ArchiveBundleRequest
+from starlette.requests import Request
+
+
+def _request(method, path):
+    return Request({"type": "http", "method": method, "path": path, "headers": [], "client": ("test", 1234), "query_string": b""})
 
 
 def test_archive_remote_path_uses_configured_gdrive_root(monkeypatch):
@@ -36,7 +41,11 @@ async def test_archive_download_returns_pdf_without_exposing_storage_key(tmp_pat
     monkeypatch.setattr(external_api, "_execute_raw_psycopg2_query", lambda *args: [archive])
     monkeypatch.setattr(external_api, "_download_archive_file", lambda *args: local_pdf)
 
-    response = await external_api.download_archived_pdf(1, db)
+    response = await external_api.download_archived_pdf(
+        request=_request("GET", "/external/api/reports/1/archive-download"),
+        report_id=1,
+        db=db,
+    )
 
     assert response.status_code == 200
     assert response.media_type == "application/pdf"
@@ -87,7 +96,9 @@ async def test_archive_bundle_prefers_drive_and_records_missing_files(tmp_path, 
     monkeypatch.setattr(external_api, "_download_archive_file", lambda *args: local_pdf)
 
     response = await external_api.download_archive_bundle(
-        ArchiveBundleRequest(report_ids=[1, 2]), object()
+        request=_request("POST", "/external/api/reports/archive-bundle"),
+        payload=ArchiveBundleRequest(report_ids=[1, 2]),
+        db=object(),
     )
 
     with zipfile.ZipFile(response.path) as bundle:
