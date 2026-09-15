@@ -77,6 +77,9 @@ def decode_access_token(token: str, settings: Settings) -> dict:
     require_jwt_secret(settings)
     try:
         payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+        canonical_token = jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+        if not hmac.compare_digest(token, canonical_token):
+            raise JWTError("Non-canonical token encoding")
     except JWTError as exc:
         raise AuthenticationException(
             "Invalid or expired token",
@@ -108,6 +111,9 @@ def decode_share_token(token: str, settings: Settings) -> int:
         raise ServiceUnavailableException("Share link secret is not configured")
     try:
         payload = jwt.decode(token, secret, algorithms=[settings.jwt_algorithm])
+        canonical_token = jwt.encode(payload, secret, algorithm=settings.jwt_algorithm)
+        if not hmac.compare_digest(token, canonical_token):
+            raise JWTError("Non-canonical token encoding")
     except JWTError as exc:
         raise AuthenticationException("Invalid or expired share link") from exc
 
@@ -132,7 +138,10 @@ def verify_telegram_data(data: dict, settings: Settings) -> tuple[bool, str]:
         return False, "Missing Telegram hash"
 
     auth_date = data.get("auth_date", 0)
-    if time.time() - auth_date > settings.telegram_auth_max_age_seconds:
+    now = time.time()
+    if not isinstance(auth_date, (int, float)) or auth_date <= 0:
+        return False, "Missing Telegram auth_date"
+    if auth_date - now > 60 or now - auth_date > settings.telegram_auth_max_age_seconds:
         return False, "Telegram auth data is expired"
 
     data_list = [f"{key}={value}" for key, value in sorted(data.items()) if key != "hash" and value is not None]

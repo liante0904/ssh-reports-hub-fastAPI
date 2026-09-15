@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     rate_limit_default: str = "120/minute"
     screening_files_path: str = "/screening_files"
     admin_log_dir: str = "/logs/main"
+    trusted_proxy_hosts: str = "127.0.0.1,::1"
 
     # Redis 캐시 설정
     redis_host: str = Field(default="localhost", alias="REDIS_HOST")
@@ -45,6 +46,10 @@ class Settings(BaseSettings):
     @property
     def allowed_origins(self) -> list[str]:
         return [origin.strip() for origin in self.cors_allow_origins.split(",") if origin.strip()]
+
+    @property
+    def trusted_proxy_host_list(self) -> list[str]:
+        return [host.strip() for host in self.trusted_proxy_hosts.split(",") if host.strip()]
 
     @property
     def clean_telegram_bot_token(self) -> str:

@@ -287,7 +287,7 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(RequestIDMiddleware)
 app.add_middleware(SlowAPIMiddleware)
-app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=get_settings().trusted_proxy_host_list)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_settings().allowed_origins,
@@ -306,7 +306,7 @@ async def auth_telegram(
     settings: Settings = Depends(get_settings_dep)
 ):
     # 개발 모드에서만 로컬 바이패스를 허용한다.
-    is_bypass = user_data.hash == "bypass" or settings.app_env == "dev" or settings.allow_auth_bypass
+    is_bypass = settings.app_env.lower() == "dev"
     allowed_ids = settings.telegram_allowed_user_ids
     is_whitelisted_user = bool(allowed_ids) and user_data.id in allowed_ids
 
