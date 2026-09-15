@@ -32,6 +32,7 @@ async def client():
         id=999,
         first_name="Admin",
         username="admin_test",
+        status="active",
         is_admin=True,
     ))
     db.add_all([

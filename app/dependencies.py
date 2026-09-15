@@ -3,7 +3,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
 from .database import get_keywords_db
-from .exceptions import AuthenticationException
+from .exceptions import AuthenticationException, PermissionDeniedException
 from .models import User
 from .security import decode_access_token
 from .settings import get_settings, Settings
@@ -23,4 +23,6 @@ async def get_user_from_token(
     user = db.query(User).filter(User.id == int(user_id)).first()
     if user is None:
         raise AuthenticationException("User Not Found")
+    if user.status != "active":
+        raise PermissionDeniedException("User access is not active")
     return user

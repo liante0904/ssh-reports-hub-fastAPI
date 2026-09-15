@@ -346,6 +346,8 @@ async def auth_telegram(
 
     db.commit()
     db.refresh(db_user)
+    if db_user.status != "active":
+        raise PermissionDeniedException("Telegram User Approval Required")
     access_token = create_access_token(db_user.id, settings)
     return {"access_token": access_token, "token_type": "bearer", "user": {"id": db_user.id, "status": db_user.status, "is_admin": db_user.is_admin}}
 
