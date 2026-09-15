@@ -182,6 +182,20 @@ jobs:
             docker exec external-nginx nginx -s reload
             echo "Traffic switched to $TARGET_COLOR"
 
+            RUNNING_SHA="$(docker inspect "ssh-reports-hub-fastapi-$TARGET_COLOR" --format '{{ index .Config.Labels `org.opencontainers.image.revision` }}')"
+            if [ "$RUNNING_SHA" != "$EXPECTED_SHA" ]; then
+              echo "Deployed image revision mismatch: expected $EXPECTED_SHA, got $RUNNING_SHA"
+              if [ "$OLD_COLOR" = "blue" ] || [ "$OLD_COLOR" = "green" ]; then
+                docker exec external-nginx sh -c "printf 'set \\$reports_hub_url http://ssh-reports-hub-fastapi-$OLD_COLOR:8000;\n' > /etc/nginx/conf.d/target.inc"
+                docker exec external-nginx nginx -t && docker exec external-nginx nginx -s reload || true
+                echo "Rolled traffic back to $OLD_COLOR"
+              fi
+              docker compose stop "ssh-reports-hub-fastapi-$TARGET_COLOR" || true
+              docker compose rm -f "ssh-reports-hub-fastapi-$TARGET_COLOR" || true
+              docker rm -f "ssh-reports-hub-fastapi-$TARGET_COLOR" 2>/dev/null || true
+              exit 1
+            fi
+
             sleep 10
             if [ "$OLD_COLOR" = "blue" ] || [ "$OLD_COLOR" = "green" ]; then
               docker compose stop "ssh-reports-hub-fastapi-$OLD_COLOR" || true
@@ -192,6 +206,5 @@ jobs:
               docker rm ssh-reports-hub-fastapi-prod || true
             fi
 
-            RUNNING_SHA="$(docker inspect "ssh-reports-hub-fastapi-$TARGET_COLOR" --format '{{ index .Config.Labels `org.opencontainers.image.revision` }}')"
             echo "Successfully deployed revision: $RUNNING_SHA"
             docker image prune -f
