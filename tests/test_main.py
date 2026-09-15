@@ -9,7 +9,7 @@ from app.main import app
 from app.dependencies import get_settings_dep
 from app.settings import Settings
 
-from app.models import SecReport, SecFirmInfo, SecBoardInfo
+from app.models import SecReport, SecFirmInfo, SecBoardInfo, User
 from app.routers.external_api import _build_outlook_clauses
 
 # 테스트용 SQLite 메모리 DB 설정
@@ -28,6 +28,7 @@ async def client():
 
     # 샘플 데이터 추가 (SecFirmInfo, SecBoardInfo 포함)
     db = TestingSessionLocal()
+    db.add(User(id=123456, status="active"))
     db.add_all(
         [
             SecFirmInfo(

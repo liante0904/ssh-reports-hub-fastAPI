@@ -51,7 +51,7 @@ def _parse_report_date(value) -> date | None:
 
 def require_admin(current_user: User = Depends(get_user_from_token)) -> User:
     """관리자 권한을 확인하는 의존성"""
-    if not current_user.is_admin:
+    if current_user.status != "active" or not current_user.is_admin:
         raise PermissionDeniedException("Admin access required")
     return current_user
 
