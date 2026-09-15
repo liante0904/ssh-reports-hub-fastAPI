@@ -24,6 +24,7 @@ from ..dependencies import get_settings_dep
 from ..services import archive_files as _archive_files
 from ..services import report_query as _report_query
 from ..services import raw_query as _raw_query
+from ..rate_limit import limiter
 
 # External API 라우터 — 프론트엔드가 직접 호출하는 공개 API
 router = APIRouter(prefix="/external/api", tags=["external-api"])
@@ -78,7 +79,9 @@ def _remove_bundle_temp_file(path: Path) -> None:
 
 
 @router.post("/reports/archive-bundle", summary="아카이브 PDF 묶음 다운로드")
+@limiter.limit("10/minute")
 async def download_archive_bundle(
+    request: Request,
     payload: ArchiveBundleRequest = Body(...),
     db: Session = Depends(get_reports_db),
 ):
@@ -170,7 +173,8 @@ def _sent_report_filter():
 
 
 @router.get("/reports/{report_id}/archive-download", summary="아카이브 PDF 다운로드")
-async def download_archived_pdf(report_id: int, db: Session = Depends(get_reports_db)):
+@limiter.limit("10/minute")
+async def download_archived_pdf(request: Request, report_id: int, db: Session = Depends(get_reports_db)):
     """Download an archived PDF without exposing the Drive key or credentials."""
     # PdfArchive ORM still carries retired legacy columns. Query only the live
     # archive contract so a download request cannot fail on those stale fields.

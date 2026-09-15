@@ -18,7 +18,6 @@ from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.extension import _rate_limit_exceeded_handler
 from slowapi.middleware import SlowAPIMiddleware
-from slowapi.util import get_remote_address
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
@@ -54,6 +53,7 @@ from .security import (
 )
 from .settings import get_settings, Settings
 from .dependencies import get_user_from_token, oauth2_scheme, get_settings_dep
+from .rate_limit import limiter
 
 
 logger = logging.getLogger(__name__)
@@ -275,7 +275,6 @@ app = FastAPI(
     redirect_slashes=False,
 )
 
-limiter = Limiter(key_func=get_remote_address, default_limits=[get_settings().rate_limit_default])
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
