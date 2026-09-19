@@ -40,7 +40,8 @@ services:
       - PDF_ARCHIVE_RCLONE_REMOTE=${PDF_ARCHIVE_RCLONE_REMOTE:-gdrive:archive/pdf}
     restart: always
     networks:
-      - public-net
+      - reports-net
+      - db-main-net
     depends_on:
       - redis
 
@@ -85,7 +86,8 @@ services:
       - PDF_ARCHIVE_RCLONE_REMOTE=${PDF_ARCHIVE_RCLONE_REMOTE:-gdrive:archive/pdf}
     restart: always
     networks:
-      - public-net
+      - reports-net
+      - db-main-net
     depends_on:
       - redis
 
@@ -97,11 +99,13 @@ services:
       - redis_data:/data
     restart: always
     networks:
-      - public-net
+      - reports-net
 
 volumes:
   redis_data:
 
 networks:
-  public-net:
+  reports-net:
+    external: true
+  db-main-net:
     external: true
